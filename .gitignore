@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.superpowers/
+.env.local
+tmp_export_frames/
+tmp_real_ffmpeg_export/
+tmp_sync_preview_smoke/
+tmp_ui_export/
+build/
+dist/

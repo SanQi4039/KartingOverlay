@@ -30,6 +30,18 @@ After this work:
 3. changing start/finish or sector lines immediately recalculates lap and sector timing summaries
 4. the same app can be copied to another Windows machine and launched without installing Python
 
+## Incremental Update 2026-06-09
+
+The implementation now also includes:
+
+1. lap-aware telemetry sample feedback in the sync workflow
+2. adjustable canvas widget width and height controls
+3. preview-path caching to reduce repeated ffmpeg extraction and overlay rerender cost
+4. cached Amap static basemap reuse inside the track editor
+5. a more compact track workspace composition with explicit basemap availability/status text
+
+This means the current gap is shifting away from core workflow plumbing and toward visual refinement plus broader page-level polish.
+
 ## Scope Split
 
 This design is intentionally split into two sequential implementation phases.
@@ -354,4 +366,3 @@ This design is successful when:
 2. changing start/finish or sector lines immediately updates total and split timing summaries
 3. track-related overlay widgets reflect the refreshed timing state
 4. the app can be distributed as a Windows folder that runs on machines without Python installed
-

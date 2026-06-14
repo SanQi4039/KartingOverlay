@@ -77,6 +77,89 @@ def test_project_panel_imports_assets_into_shared_session(tmp_path: Path):
     app.quit()
 
 
+def test_project_panel_explains_input_file_purposes():
+    app = QApplication.instance() or QApplication([])
+    panel = ProjectPanel(
+        telemetry_import_service=FakeTelemetryImportService(),
+        video_metadata_service=FakeVideoMetadataService(),
+    )
+
+    assert "遥测文件" in panel.telemetry_help_label.text()
+    assert "速度" in panel.telemetry_help_label.text()
+    assert "视频文件" in panel.video_help_label.text()
+    assert "对齐" in panel.video_help_label.text()
+    assert "第一帧预览" in panel.video_help_label.text()
+    assert "背景图" in panel.background_help_label.text()
+    assert "起终点" in panel.background_help_label.text()
+    assert "自己截图" in panel.background_help_label.text()
+    app.quit()
+
+
+def test_project_panel_places_file_help_inside_matching_sections():
+    app = QApplication.instance() or QApplication([])
+    panel = ProjectPanel(
+        telemetry_import_service=FakeTelemetryImportService(),
+        video_metadata_service=FakeVideoMetadataService(),
+    )
+    main_layout = panel.layout()
+    telemetry_layout = panel.telemetry_section.layout()
+    background_layout = panel.background_section.layout()
+    video_layout = panel.video_section.layout()
+
+    assert main_layout.indexOf(panel.telemetry_help_label) == -1
+    assert main_layout.indexOf(panel.background_help_label) == -1
+    assert main_layout.indexOf(panel.video_help_label) == -1
+    assert telemetry_layout.indexOf(panel.telemetry_import_progress) < telemetry_layout.indexOf(panel.telemetry_help_label)
+    assert background_layout.indexOf(panel.background_status_label) < background_layout.indexOf(panel.background_help_label)
+    assert video_layout.indexOf(panel.video_import_progress) < video_layout.indexOf(panel.video_help_label)
+    app.quit()
+
+
+def test_project_panel_orders_import_sections_before_project_and_help():
+    app = QApplication.instance() or QApplication([])
+    panel = ProjectPanel(
+        telemetry_import_service=FakeTelemetryImportService(),
+        video_metadata_service=FakeVideoMetadataService(),
+    )
+    layout = panel.layout()
+
+    assert layout.indexOf(panel.telemetry_section) < layout.indexOf(panel.background_section)
+    assert layout.indexOf(panel.background_section) < layout.indexOf(panel.video_section)
+    assert layout.indexOf(panel.video_section) < layout.indexOf(panel.project_section)
+    assert layout.indexOf(panel.telemetry_help_label) == -1
+    assert layout.indexOf(panel.background_help_label) == -1
+    assert layout.indexOf(panel.video_help_label) == -1
+    app.quit()
+
+
+def test_project_panel_browse_background_updates_shared_session(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    app = QApplication.instance() or QApplication([])
+    session = ProjectSession()
+    panel = ProjectPanel(
+        session=session,
+        telemetry_import_service=FakeTelemetryImportService(),
+        video_metadata_service=FakeVideoMetadataService(),
+    )
+    background_path = tmp_path / "track-background.png"
+    background_path.write_text("stub", encoding="utf-8")
+
+    monkeypatch.setattr(
+        QFileDialog,
+        "getOpenFileName",
+        lambda *args, **kwargs: (str(background_path), ""),
+    )
+
+    panel._browse_background()
+
+    assert session.background_image_path == str(background_path)
+    assert panel.background_path_input.text() == str(background_path)
+    assert "track-background.png" in panel.background_status_label.text()
+    app.quit()
+
+
 def test_project_panel_saves_background_image_relative_to_project_when_possible(tmp_path: Path):
     app = QApplication.instance() or QApplication([])
     session = ProjectSession()

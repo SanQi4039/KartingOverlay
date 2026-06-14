@@ -14,3 +14,4 @@ class TelemetryFrame:
     heading_deg: float | None = None
     accel_long_g: float | None = None
     accel_lat_g: float | None = None
+    accel_source: str | None = None

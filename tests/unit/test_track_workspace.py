@@ -1,8 +1,9 @@
 from pathlib import Path
 
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QPoint, Qt
 from PySide6.QtGui import QImage
-from PySide6.QtWidgets import QApplication, QSplitter
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QSplitter
 
 from kart_overlay.application.import_telemetry_service import TelemetryImportService
 from kart_overlay.application.project_session import ProjectSession
@@ -128,6 +129,34 @@ def test_track_workspace_can_apply_background_image_to_editor(tmp_path: Path):
     app.quit()
 
 
+def test_track_workspace_receives_background_image_from_shared_session(tmp_path: Path):
+    app = QApplication.instance() or QApplication([])
+    session = ProjectSession()
+    workspace = TrackWorkspace(session=session)
+    image_path = tmp_path / "track-background.png"
+    _write_png(image_path)
+
+    session.set_background_image_path(image_path)
+
+    assert workspace.editor.has_background_image is True
+    assert workspace.editor.background_image_path == str(image_path)
+    app.quit()
+
+
+def test_track_workspace_background_opacity_defaults_to_full(tmp_path: Path):
+    app = QApplication.instance() or QApplication([])
+    workspace = TrackWorkspace()
+    image_path = tmp_path / "track-background.png"
+    _write_png(image_path)
+
+    workspace.set_background_image_path(image_path)
+
+    assert workspace.opacity_slider.value() == 100
+    assert workspace.editor._background_item is not None
+    assert workspace.editor._background_item.opacity() == 1.0
+    app.quit()
+
+
 def test_track_workspace_prioritizes_editor_as_primary_right_pane():
     app = QApplication.instance() or QApplication([])
     workspace = TrackWorkspace()
@@ -153,6 +182,35 @@ def test_track_workspace_uses_nested_splitters_for_results_first_layout():
     assert workspace.results_panel is not None
     assert workspace.editor is not None
     assert workspace.operation_bar is not None
+    app.quit()
+
+
+def test_track_workspace_operation_bar_keeps_titles_close_to_actions():
+    app = QApplication.instance() or QApplication([])
+    workspace = TrackWorkspace(session=ProjectSession())
+
+    line_group = workspace.operation_bar.layout().itemAt(0).widget()
+    line_layout = line_group.layout()
+    title = line_layout.itemAt(0).widget()
+
+    assert isinstance(line_layout, QHBoxLayout)
+    assert isinstance(title, QLabel)
+    assert title.text() == "线操作"
+    assert line_layout.spacing() <= 8
+    assert workspace.operation_bar.minimumHeight() <= 120
+    app.quit()
+
+
+def test_track_workspace_operation_bar_shows_track_shortcuts_on_right():
+    app = QApplication.instance() or QApplication([])
+    workspace = TrackWorkspace(session=ProjectSession())
+
+    shortcut_text = workspace.shortcut_help_label.text()
+
+    assert "左键拖动" in shortcut_text
+    assert "右键旋转" in shortcut_text
+    assert "Ctrl+滚轮" in shortcut_text
+    assert workspace.operation_bar.layout().itemAt(workspace.operation_bar.layout().count() - 1).widget() is workspace.shortcut_help_label
     app.quit()
 
 
@@ -248,4 +306,24 @@ def test_track_workspace_rotate_buttons_and_precise_nudges_use_small_steps():
     assert workspace.editor.display_transform.translate_x == 1.0
     assert workspace.editor.display_transform.translate_y == 1.0
     assert workspace.editor.display_transform.rotation_deg == 0.5
+    app.quit()
+
+
+def test_track_editor_right_drag_rotates_opposite_screen_direction(tmp_path: Path):
+    app = QApplication.instance() or QApplication([])
+    workspace = TrackWorkspace()
+    image_path = tmp_path / "track-background.png"
+    _write_png(image_path)
+    workspace.set_background_image_path(image_path)
+    workspace.editor.resize(640, 480)
+    workspace.editor.show()
+    app.processEvents()
+
+    start = QPoint(320, 240)
+    end = QPoint(340, 240)
+    QTest.mousePress(workspace.editor.viewport(), Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, start)
+    QTest.mouseMove(workspace.editor.viewport(), end)
+    QTest.mouseRelease(workspace.editor.viewport(), Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, end)
+
+    assert workspace.editor.display_transform.rotation_deg < 0
     app.quit()

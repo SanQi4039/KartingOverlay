@@ -35,6 +35,7 @@ class FakeExportTaskRunner:
                 manifest_path=request.manifest_path,
                 log_path=request.log_path,
                 frame_count=4,
+                encoder_label="ProRes 4444 (CPU)",
             )
         )
 
@@ -64,12 +65,16 @@ def test_export_workspace_displays_runner_progress_and_logs(tmp_path: Path):
         ]
     )
     runner = FakeExportTaskRunner()
+    session = ProjectSession()
+    session.set_widget_layouts({"speed": {"enabled": True}})
     workspace = ExportWorkspace(
-        session=ProjectSession(),
+        session=session,
         export_task_runner=runner,
         video_metadata_service=FakeVideoMetadataService(),
     )
     workspace.load_telemetry(telemetry)
+    workspace.video_path_input.setText("sample.mp4")
+    workspace.read_video_metadata()
     workspace.output_dir_input.setText(str(tmp_path))
 
     workspace.start_export()

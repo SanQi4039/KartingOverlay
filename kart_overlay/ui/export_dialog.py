@@ -7,6 +7,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from kart_overlay.application.export_formats import available_export_formats, format_option_label
+from kart_overlay.ui.export_options import FpsComboBox
 from kart_overlay.ui.texts import app_text
 
 
@@ -16,9 +18,13 @@ class ExportDialog(QDialog):
         self.setWindowTitle(app_text("export_dialog_title"))
 
         self.format_combo = QComboBox()
-        self.format_combo.addItems([app_text("export_format_mov_alpha")])
+        for spec in available_export_formats():
+            self.format_combo.addItem(
+                format_option_label(spec, canvas_size=(1280, 720), fps=50.0, duration_sec=25 * 60),
+                spec.key,
+            )
 
-        self.fps_input = QLineEdit("60")
+        self.fps_input = FpsComboBox()
         self.output_path_input = QLineEdit()
 
         form = QFormLayout()

@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field, replace
+import logging
 from pathlib import Path
+from time import perf_counter
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap, QTransform
@@ -25,6 +27,9 @@ from kart_overlay.ui.texts import (
 from kart_overlay.ui.track_scene_items import EditableTimingLineItem, LineHandleItem
 
 
+LOGGER = logging.getLogger(__name__)
+
+
 @dataclass(frozen=True)
 class TrackEditorAnalysisState:
     lap_result: LapDetectionResult | None = None
@@ -47,7 +52,7 @@ class TrackEditor(QGraphicsView):
         self._track_definition: TrackDefinition | None = None
         self._display_transform = DisplayTransform()
         self._background_image_path = ""
-        self._background_opacity = 0.55
+        self._background_opacity = 1.0
         self._edit_mode = "view"
         self._analysis_builder = TrackAnalysisBuilder()
         self._analysis_state: TrackEditorAnalysisState | None = None
@@ -145,6 +150,7 @@ class TrackEditor(QGraphicsView):
         self._edit_mode = mode
         self._pending_points = []
         self._pending_preview_point = None
+        self._clear_pending_preview_item()
         self._apply_mode_interaction()
         self._set_status_message(track_mode_status(mode))
         self.edit_mode_changed.emit(mode)
@@ -157,10 +163,12 @@ class TrackEditor(QGraphicsView):
     def update_pending_preview(self, point: tuple[float, float]) -> None:
         if self._edit_mode not in {"start_finish", "sector"} or len(self._pending_points) != 1:
             self._pending_preview_point = None
-            self._render(fit_view=False)
+            self._clear_pending_preview_item()
             return
+        started = perf_counter()
         self._pending_preview_point = Point2D(*point)
-        self._render(fit_view=False)
+        self._sync_pending_preview_item()
+        LOGGER.debug("track_editor pending_preview_ms=%.3f", (perf_counter() - started) * 1000.0)
 
     def set_background_image_path(self, image_path: str | Path) -> None:
         self._background_image_path = str(image_path)
@@ -226,6 +234,7 @@ class TrackEditor(QGraphicsView):
                 display_transform=self._display_transform,
                 background_image_path=self._background_image_path,
             )
+            self._selected_line_key = "start_finish"
         elif self._edit_mode == "sector":
             if self._track_definition is None:
                 raise ValueError("Start/finish line must be defined before adding sectors.")
@@ -269,6 +278,7 @@ class TrackEditor(QGraphicsView):
         if self._track_definition is None:
             raise ValueError("Track definition is not set.")
 
+        started = perf_counter()
         new_point = Point2D(*point)
         if line_kind == "start_finish":
             line = self._track_definition.start_finish
@@ -318,6 +328,12 @@ class TrackEditor(QGraphicsView):
         self._refresh_analysis()
         self._render()
         self.track_definition_changed.emit(self._track_definition)
+        LOGGER.info(
+            "track_editor endpoint_commit_ms=%.3f line=%s endpoint=%s",
+            (perf_counter() - started) * 1000.0,
+            line_kind,
+            endpoint,
+        )
 
     def editable_items(self) -> list[EditableTimingLineItem]:
         return list(self._editable_items)
@@ -442,7 +458,7 @@ class TrackEditor(QGraphicsView):
         if self._overlay_rotate_origin_x is not None:
             delta_x = event.position().toPoint().x() - self._overlay_rotate_origin_x
             self._update_display_transform(
-                rotation_deg=self._overlay_rotate_origin_rotation + (delta_x * 0.25),
+                rotation_deg=self._overlay_rotate_origin_rotation - (delta_x * 0.25),
                 fit_view=False,
             )
             event.accept()
@@ -631,6 +647,8 @@ class TrackEditor(QGraphicsView):
         return False
 
     def _set_status_message(self, message: str) -> None:
+        if self._status_message == message:
+            return
         self._status_message = message
         self.status_changed.emit(message)
 
@@ -640,6 +658,7 @@ class TrackEditor(QGraphicsView):
             self.analysis_changed.emit()
             return
 
+        started = perf_counter()
         summary = self._analysis_builder.build(store=self._telemetry, track_definition=self._track_definition)
         self._analysis_state = TrackEditorAnalysisState(
             lap_result=summary.lap_result,
@@ -647,6 +666,44 @@ class TrackEditor(QGraphicsView):
             summary=summary,
         )
         self.analysis_changed.emit()
+        LOGGER.info(
+            "track_editor recompute_ms=%.3f laps=%s sectors=%s",
+            (perf_counter() - started) * 1000.0,
+            0 if summary.lap_result is None else len(summary.lap_result.laps),
+            len(summary.sector_splits),
+        )
+
+    def _sync_pending_preview_item(self) -> None:
+        if len(self._pending_points) != 1 or self._pending_preview_point is None:
+            self._clear_pending_preview_item()
+            return
+
+        start_point = self._pending_points[0]
+        mapped_start = self._map_track_point(QPointF(start_point.x, -start_point.y))
+        mapped_end = self._map_track_point(QPointF(self._pending_preview_point.x, -self._pending_preview_point.y))
+        preview_path = QPainterPath(mapped_start)
+        preview_path.lineTo(mapped_end)
+        if self._pending_preview_item is None:
+            preview_item = QGraphicsPathItem(preview_path)
+            preview_pen = QPen(QColor("#8ecae6"))
+            preview_pen.setWidthF(2.0)
+            preview_pen.setStyle(Qt.PenStyle.DashLine)
+            preview_item.setPen(preview_pen)
+            preview_item.setZValue(18)
+            self._scene.addItem(preview_item)
+            self._pending_preview_item = preview_item
+        else:
+            self._pending_preview_item.setPath(preview_path)
+
+        preview_bounds = preview_path.boundingRect().adjusted(-24.0, -24.0, 24.0, 24.0)
+        if not self._scene.sceneRect().contains(preview_bounds):
+            self._scene.setSceneRect(self._scene.sceneRect().united(preview_bounds))
+
+    def _clear_pending_preview_item(self) -> None:
+        if self._pending_preview_item is None:
+            return
+        self._scene.removeItem(self._pending_preview_item)
+        self._pending_preview_item = None
 
     def _sync_track_definition(self) -> None:
         if self._track_definition is None:

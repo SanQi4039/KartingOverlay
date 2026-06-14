@@ -2,7 +2,6 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QFileDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -38,8 +37,6 @@ class TrackWorkspace(QWidget):
         for button in (self.view_button, self.start_finish_button, self.sector_button):
             button.setCheckable(True)
 
-        self.import_background_button = QPushButton("导入背景图")
-        self.replace_background_button = QPushButton("替换背景图")
         self.clear_background_button = QPushButton("清除背景图")
         self.delete_selected_button = QPushButton("删除分段线")
         self.reset_start_finish_button = QPushButton("重置起终线")
@@ -54,12 +51,15 @@ class TrackWorkspace(QWidget):
         self.rotate_right_button = QPushButton("右旋")
         self.opacity_slider = QSlider(Qt.Orientation.Horizontal)
         self.opacity_slider.setRange(15, 100)
-        self.opacity_slider.setValue(55)
+        self.opacity_slider.setValue(100)
         self.point_slider = QSlider(Qt.Orientation.Horizontal)
         self.point_slider.setRange(0, 0)
         self.point_slider.setSingleStep(1)
         self.point_index_label = QLabel("点 0 / 0")
         self.point_lap_label = QLabel("第 1 圈")
+        self.shortcut_help_label = QLabel("快捷键：左键拖动改变轨迹位置｜右键旋转｜Ctrl+滚轮放大缩小")
+        self.shortcut_help_label.setWordWrap(True)
+        self.shortcut_help_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         self.editor_status_label = self.results_panel.status_value
         self.background_status_label = self.results_panel.background_value
@@ -67,8 +67,6 @@ class TrackWorkspace(QWidget):
         self.view_button.clicked.connect(lambda: self._set_mode("view"))
         self.start_finish_button.clicked.connect(lambda: self._set_mode("start_finish"))
         self.sector_button.clicked.connect(lambda: self._set_mode("sector"))
-        self.import_background_button.clicked.connect(self._import_background_image)
-        self.replace_background_button.clicked.connect(self._replace_background_image)
         self.clear_background_button.clicked.connect(self._clear_background_image)
         self.delete_selected_button.clicked.connect(self._delete_selected_line)
         self.reset_start_finish_button.clicked.connect(self._reset_start_finish)
@@ -93,7 +91,7 @@ class TrackWorkspace(QWidget):
         results_container.setMinimumWidth(340)
 
         self.operation_bar = self._build_operation_bar()
-        self.operation_bar.setMinimumHeight(160)
+        self.operation_bar.setMinimumHeight(120)
 
         self.slider_bar = self._build_slider_bar()
 
@@ -133,6 +131,7 @@ class TrackWorkspace(QWidget):
         self._session.telemetry_changed.connect(self._handle_session_telemetry_changed)
         self._session.video_metadata_changed.connect(self._handle_session_video_metadata_changed)
         self._session.track_definition_changed.connect(self._handle_session_track_definition_changed)
+        self._session.background_image_path_changed.connect(self._handle_session_background_image_path_changed)
 
         self.results_panel.update_status(self.editor.status_message)
         self.results_panel.update_background_status(self.editor.background_status_message)
@@ -149,6 +148,8 @@ class TrackWorkspace(QWidget):
 
     def set_background_image_path(self, image_path: str | Path) -> None:
         self.editor.set_background_image_path(image_path)
+        if self._session.background_image_path != str(image_path):
+            self._session.set_background_image_path(image_path)
         self._refresh_background_status()
 
     def _set_mode(self, mode: str) -> None:
@@ -200,6 +201,15 @@ class TrackWorkspace(QWidget):
         self.editor.set_track_definition(track_definition)
         self._refresh_background_status()
 
+    def _handle_session_background_image_path_changed(self, image_path: str) -> None:
+        if image_path == self.editor.background_image_path:
+            return
+        if image_path:
+            self.editor.set_background_image_path(image_path)
+        else:
+            self.editor.clear_background_image()
+        self._refresh_background_status()
+
     def _handle_session_video_metadata_changed(self, metadata) -> None:
         self.results_panel.update_video(metadata)
 
@@ -242,21 +252,10 @@ class TrackWorkspace(QWidget):
         self.editor.set_background_opacity(value / 100.0)
         self._refresh_background_status()
 
-    def _import_background_image(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "选择背景图",
-            "",
-            "Images (*.png *.jpg *.jpeg *.bmp *.webp);;All files (*)",
-        )
-        if path:
-            self.set_background_image_path(path)
-
-    def _replace_background_image(self) -> None:
-        self._import_background_image()
-
     def _clear_background_image(self) -> None:
         self.editor.clear_background_image()
+        if self._session.background_image_path:
+            self._session.set_background_image_path("")
         self._refresh_background_status()
 
     def _refresh_background_status(self) -> None:
@@ -279,9 +278,10 @@ class TrackWorkspace(QWidget):
         layout.setSpacing(10)
         layout.addWidget(
             self._build_group(
-                "模式",
+                "线操作",
                 [
                     [self.view_button, self.start_finish_button, self.sector_button],
+                    [self.delete_selected_button, self.reset_start_finish_button],
                 ],
             )
         )
@@ -289,31 +289,24 @@ class TrackWorkspace(QWidget):
             self._build_group(
                 "背景图",
                 [
-                    [self.import_background_button, self.replace_background_button],
                     [self.clear_background_button, self.reset_background_transform_button],
                     [QLabel("透明度"), self.opacity_slider],
                 ],
             )
         )
         layout.addWidget(self._build_track_adjust_group())
-        layout.addWidget(
-            self._build_group(
-                "线操作",
-                [
-                    [self.delete_selected_button],
-                    [self.reset_start_finish_button],
-                ],
-            )
-        )
         layout.addStretch(1)
+        layout.addWidget(self.shortcut_help_label)
         return operation_bar
 
     def _build_track_adjust_group(self) -> QWidget:
         frame = QFrame()
-        group_layout = QVBoxLayout(frame)
-        group_layout.setContentsMargins(6, 6, 6, 6)
-        group_layout.setSpacing(6)
-        group_layout.addWidget(QLabel("轨迹微调"))
+        group_layout = QHBoxLayout(frame)
+        group_layout.setContentsMargins(6, 4, 6, 4)
+        group_layout.setSpacing(8)
+        title_label = QLabel("轨迹微调")
+        title_label.setObjectName("operationGroupTitle")
+        group_layout.addWidget(title_label)
 
         remote_grid = QGridLayout()
         remote_grid.setHorizontalSpacing(6)
@@ -331,16 +324,21 @@ class TrackWorkspace(QWidget):
 
     def _build_group(self, title: str, rows: list[list[QWidget]]) -> QWidget:
         frame = QFrame()
-        group_layout = QVBoxLayout(frame)
-        group_layout.setContentsMargins(6, 6, 6, 6)
-        group_layout.setSpacing(6)
-        group_layout.addWidget(QLabel(title))
+        group_layout = QHBoxLayout(frame)
+        group_layout.setContentsMargins(6, 4, 6, 4)
+        group_layout.setSpacing(8)
+        title_label = QLabel(title)
+        title_label.setObjectName("operationGroupTitle")
+        group_layout.addWidget(title_label)
+        rows_layout = QVBoxLayout()
+        rows_layout.setSpacing(4)
         for row_widgets in rows:
             row_layout = QHBoxLayout()
             row_layout.setSpacing(6)
             for widget in row_widgets:
                 row_layout.addWidget(widget)
-            group_layout.addLayout(row_layout)
+            rows_layout.addLayout(row_layout)
+        group_layout.addLayout(rows_layout)
         return frame
 
     def _configure_point_slider(self, telemetry: TelemetryStore | None) -> None:

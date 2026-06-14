@@ -3,7 +3,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication
 
 from kart_overlay.application.import_telemetry_service import TelemetryImportService
-from kart_overlay.application.project_session import ProjectSession
+from kart_overlay.application.project_session import ProjectSession, _default_output_dir
 from kart_overlay.infrastructure.video.ffprobe_service import VideoMetadata
 from kart_overlay.ui.export_workspace import ExportWorkspace
 
@@ -45,7 +45,15 @@ def test_project_session_pushes_shared_state_into_export_workspace():
 
     assert export_workspace.video_path_input.text() == "sample.mp4"
     assert export_workspace.fps_input.text().startswith("60.000")
-    assert export_workspace.canvas_width_input.text() == "1080"
-    assert export_workspace.canvas_height_input.text() == "1920"
+    assert export_workspace.resolution_combo.currentData() == "original"
+    assert not hasattr(export_workspace, "canvas_width_input")
+    assert not hasattr(export_workspace, "canvas_height_input")
     assert export_workspace._telemetry is telemetry
     app.quit()
+
+
+def test_project_session_defaults_export_output_dir_to_desktop():
+    session = ProjectSession()
+
+    assert session.export_settings["output_dir"] == _default_output_dir()
+    assert session.export_settings["output_dir"]

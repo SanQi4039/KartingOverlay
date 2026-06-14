@@ -39,58 +39,123 @@ class ProjectPanel(QWidget):
         self._project_service = project_service or ProjectService()
 
         self.telemetry_path_input = QLineEdit()
+        self.background_path_input = QLineEdit()
         self.video_path_input = QLineEdit()
+        self.background_path_input.setReadOnly(True)
         self.telemetry_status_label = QLabel(app_text("telemetry_not_loaded"))
+        self.background_status_label = QLabel(app_text("background_not_loaded"))
         self.video_status_label = QLabel(app_text("video_not_loaded"))
         self.project_status_label = QLabel(app_text("project_not_loaded"))
+        self.telemetry_help_label = QLabel("遥测文件：提供速度、位置、圈速等数据，是组件显示和赛道分析的主要数据来源。")
+        self.video_help_label = QLabel("视频文件：用于时间对齐，并在画布编辑页显示第一帧预览，方便判断组件大小和位置。")
+        self.background_help_label = QLabel("背景图：用于赛道编辑中确定起终点和分段线位置；可以从视频或地图里自己截图后导入。")
         self.telemetry_import_progress = QProgressBar()
         self.video_import_progress = QProgressBar()
-        self.telemetry_status_label.setWordWrap(True)
-        self.video_status_label.setWordWrap(True)
-        self.project_status_label.setWordWrap(True)
+        for label in (
+            self.telemetry_status_label,
+            self.background_status_label,
+            self.video_status_label,
+            self.project_status_label,
+            self.telemetry_help_label,
+            self.video_help_label,
+            self.background_help_label,
+        ):
+            label.setWordWrap(True)
         for progress_bar in (self.telemetry_import_progress, self.video_import_progress):
             progress_bar.setRange(0, 100)
             progress_bar.setValue(0)
             progress_bar.setTextVisible(False)
 
         self.browse_telemetry_button = QPushButton(app_text("browse_telemetry"))
+        self.browse_background_button = QPushButton(app_text("browse_background"))
         self.browse_video_button = QPushButton(app_text("browse_video"))
         self.save_project_button = QPushButton(app_text("save_project"))
         self.load_project_button = QPushButton(app_text("load_project"))
 
         self.browse_telemetry_button.clicked.connect(self._browse_telemetry)
+        self.browse_background_button.clicked.connect(self._browse_background)
         self.browse_video_button.clicked.connect(self._browse_video)
         self.save_project_button.clicked.connect(self._save_project)
         self.load_project_button.clicked.connect(self._load_project)
 
-        form = QFormLayout()
-        form.addRow(app_text("telemetry_file"), self.telemetry_path_input)
-        form.addRow(app_text("video_file"), self.video_path_input)
-
-        telemetry_actions = QHBoxLayout()
-        telemetry_actions.addWidget(self.browse_telemetry_button)
-
-        video_actions = QHBoxLayout()
-        video_actions.addWidget(self.browse_video_button)
-
-        project_actions = QHBoxLayout()
-        project_actions.addWidget(self.save_project_button)
-        project_actions.addWidget(self.load_project_button)
+        self.telemetry_section = self._build_file_section(
+            title="遥测数据",
+            file_label=app_text("telemetry_file"),
+            path_input=self.telemetry_path_input,
+            browse_button=self.browse_telemetry_button,
+            status_label=self.telemetry_status_label,
+            progress_bar=self.telemetry_import_progress,
+            help_label=self.telemetry_help_label,
+        )
+        self.background_section = self._build_file_section(
+            title="背景图",
+            file_label="背景图文件",
+            path_input=self.background_path_input,
+            browse_button=self.browse_background_button,
+            status_label=self.background_status_label,
+            help_label=self.background_help_label,
+        )
+        self.video_section = self._build_file_section(
+            title="视频",
+            file_label=app_text("video_file"),
+            path_input=self.video_path_input,
+            browse_button=self.browse_video_button,
+            status_label=self.video_status_label,
+            progress_bar=self.video_import_progress,
+            help_label=self.video_help_label,
+        )
+        self.project_section = self._build_project_section()
 
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(app_text("project_workflow")))
-        layout.addLayout(form)
-        layout.addLayout(telemetry_actions)
-        layout.addWidget(self.telemetry_status_label)
-        layout.addWidget(self.telemetry_import_progress)
-        layout.addLayout(video_actions)
-        layout.addWidget(self.video_status_label)
-        layout.addWidget(self.video_import_progress)
-        layout.addLayout(project_actions)
-        layout.addWidget(self.project_status_label)
+        layout.addWidget(self.telemetry_section)
+        layout.addWidget(self.background_section)
+        layout.addWidget(self.video_section)
+        layout.addWidget(self.project_section)
         layout.addStretch(1)
 
         self._session.video_path_changed.connect(self._handle_session_video_path_changed)
+        self._session.background_image_path_changed.connect(self._handle_session_background_image_path_changed)
+
+    def _build_file_section(
+        self,
+        *,
+        title: str,
+        file_label: str,
+        path_input: QLineEdit,
+        browse_button: QPushButton,
+        status_label: QLabel,
+        progress_bar: QProgressBar | None = None,
+        help_label: QLabel | None = None,
+    ) -> QWidget:
+        section = QWidget()
+        section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(0, 4, 0, 4)
+        section_layout.setSpacing(6)
+        section_layout.addWidget(QLabel(title))
+        form = QFormLayout()
+        form.addRow(file_label, path_input)
+        section_layout.addLayout(form)
+        section_layout.addWidget(browse_button)
+        section_layout.addWidget(status_label)
+        if progress_bar is not None:
+            section_layout.addWidget(progress_bar)
+        if help_label is not None:
+            section_layout.addWidget(help_label)
+        return section
+
+    def _build_project_section(self) -> QWidget:
+        section = QWidget()
+        section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(0, 4, 0, 4)
+        section_layout.setSpacing(6)
+        section_layout.addWidget(QLabel("项目"))
+        project_actions = QHBoxLayout()
+        project_actions.addWidget(self.save_project_button)
+        project_actions.addWidget(self.load_project_button)
+        section_layout.addLayout(project_actions)
+        section_layout.addWidget(self.project_status_label)
+        return section
 
     def default_project_directory(self) -> str:
         return str(ensure_default_projects_dir())
@@ -160,10 +225,33 @@ class ProjectPanel(QWidget):
             self.video_path_input.setText(path)
             self.import_video()
 
+    def _browse_background(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            app_text("select_background_file"),
+            self.default_project_directory(),
+            app_text("background_file_filter"),
+        )
+        if path:
+            self.background_path_input.setText(path)
+            self._session.set_background_image_path(path)
+            self.background_status_label.setText(
+                app_text("background_loaded").format(name=Path(path).name)
+            )
+
     def _handle_session_video_path_changed(self, video_path: str) -> None:
         if self.video_path_input.text().strip() == video_path:
             return
         self.video_path_input.setText(video_path)
+
+    def _handle_session_background_image_path_changed(self, image_path: str) -> None:
+        self.background_path_input.setText(image_path)
+        if image_path:
+            self.background_status_label.setText(
+                app_text("background_loaded").format(name=Path(image_path).name)
+            )
+            return
+        self.background_status_label.setText(app_text("background_not_loaded"))
 
     @staticmethod
     def _begin_import_progress(progress_bar: QProgressBar) -> None:
@@ -182,7 +270,11 @@ class ProjectPanel(QWidget):
             telemetry={
                 "path": self._session.telemetry_source_path,
             },
-            track=_serialize_track_definition(self._session.track_definition, project_path=project_path),
+            track=_serialize_track_definition(
+                self._session.track_definition,
+                project_path=project_path,
+                background_image_path=self._session.background_image_path,
+            ),
             canvas={
                 "widget_count": len(self._session.widget_layouts),
             },
@@ -221,18 +313,31 @@ class ProjectPanel(QWidget):
             self.video_import_progress.setValue(100)
 
         track_definition = _deserialize_track_definition(document.track, project_path=project_path)
+        background_image_path = _resolve_project_path(
+            str(document.track.get("background_image_path", "")),
+            project_path=project_path,
+        )
+        if background_image_path:
+            self._session.set_background_image_path(background_image_path)
         if track_definition is not None:
             self._session.set_track_definition(track_definition)
 
-        widget_layouts = {
-            widget_payload["name"]: {
+        widget_layouts: dict[str, dict[str, object]] = {}
+        for widget_payload in document.widgets:
+            if "name" not in widget_payload:
+                continue
+            layout: dict[str, object] = {
                 "x": int(widget_payload.get("x", 0)),
                 "y": int(widget_payload.get("y", 0)),
+                "width": int(widget_payload.get("width", 0)) or None,
+                "height": int(widget_payload.get("height", 0)) or None,
                 "enabled": bool(widget_payload.get("enabled", True)),
             }
-            for widget_payload in document.widgets
-            if "name" in widget_payload
-        }
+            if "background_opacity" in widget_payload:
+                layout["background_opacity"] = int(widget_payload.get("background_opacity", 0))
+            if "font_scale" in widget_payload:
+                layout["font_scale"] = float(widget_payload.get("font_scale", 1.0))
+            widget_layouts[str(widget_payload["name"])] = layout
         if widget_layouts:
             self._session.set_widget_layouts(widget_layouts)
 
@@ -291,9 +396,21 @@ def _serialize_timing_line(line: TimingLine) -> dict:
     }
 
 
-def _serialize_track_definition(track_definition: TrackDefinition | None, *, project_path: Path) -> dict:
+def _serialize_track_definition(
+    track_definition: TrackDefinition | None,
+    *,
+    project_path: Path,
+    background_image_path: str = "",
+) -> dict:
     if track_definition is None:
-        return {}
+        if not background_image_path:
+            return {}
+        return {
+            "background_image_path": _serialize_project_path(
+                background_image_path,
+                project_path=project_path,
+            ),
+        }
     return {
         "start_finish": _serialize_timing_line(track_definition.start_finish),
         "sectors": [
@@ -307,7 +424,7 @@ def _serialize_track_definition(track_definition: TrackDefinition | None, *, pro
             "scale": track_definition.display_transform.scale,
         },
         "background_image_path": _serialize_project_path(
-            track_definition.background_image_path,
+            track_definition.background_image_path or background_image_path,
             project_path=project_path,
         ),
     }

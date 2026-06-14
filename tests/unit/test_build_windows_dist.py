@@ -80,6 +80,19 @@ def test_resolve_runtime_dlls_reads_from_conda_library_bin(monkeypatch, tmp_path
     assert resolved["libssl-3-x64.dll"] == library_bin / "libssl-3-x64.dll"
 
 
+def test_resolve_runtime_dlls_reads_from_python_dlls_dir(monkeypatch, tmp_path: Path):
+    dlls_dir = tmp_path / "DLLs"
+    dlls_dir.mkdir(parents=True)
+    for dll_name in RUNTIME_DLL_NAMES:
+        (dlls_dir / dll_name).write_text("", encoding="utf-8")
+
+    monkeypatch.setattr("scripts.build_windows_dist.sys.prefix", str(tmp_path))
+
+    resolved = resolve_runtime_dlls()
+
+    assert resolved["libssl-3-x64.dll"] == dlls_dir / "libssl-3-x64.dll"
+
+
 def test_ensure_project_root_on_sys_path_adds_root_once(monkeypatch):
     root = project_root()
     monkeypatch.setattr("scripts.build_windows_dist.sys.path", ["D:\\temp\\child"])

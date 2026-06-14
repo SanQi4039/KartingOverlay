@@ -32,6 +32,7 @@ class _ExportWorker(QObject):
                 manifest_path=self._request.manifest_path,
                 log_path=self._request.log_path,
                 manifest_payload=self._request.manifest_payload,
+                export_format=self._request.export_format,
                 progress_callback=self.progress.emit,
                 cancel_event=self._cancel_event,
             )

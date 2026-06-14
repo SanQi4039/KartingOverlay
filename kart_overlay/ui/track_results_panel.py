@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QBrush, QFont
+from PySide6.QtGui import QBrush, QColor, QFont
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QFormLayout,
     QFrame,
     QGridLayout,
@@ -32,17 +33,31 @@ class TrackResultsPanel(QWidget):
         summary_grid = QGridLayout()
         summary_grid.setHorizontalSpacing(10)
         summary_grid.setVerticalSpacing(10)
-        self.current_lap_value = self._add_value_card(summary_grid, 0, 0, "当前圈")
+        self.current_lap_value = self._add_value_card(
+            summary_grid,
+            0,
+            0,
+            "\u5f53\u524d\u5708\u901f",
+        )
         self.best_lap_value = self._add_value_card(summary_grid, 0, 1, app_text("best_lap"))
-        self.sector_times_value = self._add_value_card(summary_grid, 1, 0, app_text("best_sector_times"), colspan=2)
+        self.sector_times_value = self._add_value_card(
+            summary_grid,
+            1,
+            0,
+            app_text("best_sector_times"),
+            colspan=2,
+        )
 
         lap_card = QFrame()
         lap_layout = QVBoxLayout(lap_card)
         lap_layout.setContentsMargins(8, 8, 8, 8)
         lap_layout.setSpacing(6)
-        lap_layout.addWidget(QLabel("圈速列表"))
+        lap_layout.addWidget(QLabel("\u5708\u901f\u5217\u8868"))
         self.lap_list_widget = QListWidget()
         self.lap_list_widget.setAlternatingRowColors(True)
+        self.lap_list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.lap_list_widget.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.lap_list_widget.setTextElideMode(Qt.TextElideMode.ElideNone)
         lap_layout.addWidget(self.lap_list_widget)
 
         detail_card = QFrame()
@@ -62,9 +77,9 @@ class TrackResultsPanel(QWidget):
             label.setWordWrap(True)
         detail_layout.addRow(app_text("workflow_status_telemetry"), self.telemetry_value)
         detail_layout.addRow(app_text("workflow_status_video"), self.video_value)
-        detail_layout.addRow("采样点", self.sample_value)
-        detail_layout.addRow("状态", self.status_value)
-        detail_layout.addRow("背景图", self.background_value)
+        detail_layout.addRow("\u91c7\u6837\u70b9", self.sample_value)
+        detail_layout.addRow("\u72b6\u6001", self.status_value)
+        detail_layout.addRow("\u80cc\u666f\u56fe", self.background_value)
 
         layout.addLayout(summary_grid)
         layout.addWidget(lap_card, 1)
@@ -112,7 +127,7 @@ class TrackResultsPanel(QWidget):
         best_lap = analysis_summary.best_lap_time_sec
         self.best_lap_value.setText("--" if best_lap is None else f"{best_lap:.3f} s")
 
-        sector_text = _format_sector_times(analysis_summary.best_sector_times)
+        sector_text = _format_sector_times(analysis_summary.best_lap_sector_times)
         if sector_text == "--" and sector_result is not None and sector_result.sector_crossings:
             sector_text = ", ".join(sorted(sector_result.sector_crossings))
         self.sector_times_value.setText(sector_text)
@@ -146,7 +161,7 @@ class TrackResultsPanel(QWidget):
         lap_text = ""
         if self._analysis_summary is not None:
             lap_number = self._analysis_summary.current_lap_number_at(sample.elapsed_sec)
-            lap_text = f" | 第 {lap_number} 圈"
+            lap_text = f" | \u7b2c {lap_number} \u5708"
         self.sample_value.setText(
             f"#{sample.sample_index + 1} ({sample.x_m:.2f}, {sample.y_m:.2f}){lap_text}"
         )
@@ -190,9 +205,22 @@ class TrackResultsPanel(QWidget):
         current_lap_index = self._current_lap_index(analysis_summary)
         best_lap_index = None if lap_result.best_lap is None else lap_result.best_lap.lap_index
         for lap in lap_result.laps:
-            label = f"第 {lap.lap_index} 圈  {lap.lap_time_sec:.3f} s"
-            if lap.lap_index == best_lap_index:
-                label = f"{label}  最佳"
+            gap = analysis_summary.lap_gap_display(lap.lap_index)
+            label = f"\u7b2c {lap.lap_index} \u5708  {lap.lap_time_sec:.3f} s  {gap.text}"
+            lap_splits = sorted(
+                (
+                    split
+                    for split in analysis_summary.sector_splits
+                    if split.lap_index == lap.lap_index
+                ),
+                key=lambda split: split.order,
+            )
+            split_text = " | ".join(
+                f"{split.segment_name} {split.duration_sec:.3f} s ({analysis_summary.sector_gap_display(lap.lap_index, split.segment_name).text})"
+                for split in lap_splits
+            )
+            if split_text:
+                label = f"{label} | {split_text}"
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, lap.lap_index)
             font = QFont(item.font())
@@ -201,6 +229,10 @@ class TrackResultsPanel(QWidget):
             item.setFont(font)
             if lap.lap_index in invalid_lap_indexes:
                 item.setForeground(QBrush(QColor("#7a8594")))
+            elif gap.status == "faster":
+                item.setForeground(QBrush(QColor("#2fb344")))
+            elif gap.status == "slower":
+                item.setForeground(QBrush(QColor("#d64045")))
             self.lap_list_widget.addItem(item)
 
         if current_lap_index is not None:

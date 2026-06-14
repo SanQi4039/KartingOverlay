@@ -2,17 +2,25 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from kart_overlay.application.export_service import ExportExecutionResult
+from kart_overlay.application.export_service import ExportExecutionResult, ExportPreparationResult
 from kart_overlay.application.project_session import ProjectSession
 from kart_overlay.domain.telemetry.models import TelemetrySample
 from kart_overlay.domain.telemetry.store import TelemetryStore
 from kart_overlay.domain.track.models import Point2D, TimingLine, TrackDefinition
+from kart_overlay.infrastructure.video.ffprobe_service import VideoMetadata
 from kart_overlay.ui.export_workspace import ExportWorkspace
 
 
 class FakeExportService:
     def __init__(self) -> None:
         self.last_execute_kwargs = None
+
+    def prepare_export(self, **kwargs):
+        return ExportPreparationResult(
+            command=["ffmpeg"],
+            frame_timestamps=[0.0],
+            encoder_label="ProRes 4444 (CPU)",
+        )
 
     def execute_export(self, **kwargs):
         self.last_execute_kwargs = kwargs
@@ -27,6 +35,7 @@ class FakeExportService:
             manifest_path=manifest_path,
             log_path=log_path,
             frame_count=0,
+            encoder_label="ProRes 4444 (CPU)",
         )
 
 
@@ -38,6 +47,9 @@ class FakeVideoMetadataService:
             "ffprobe_available": True,
             "ffprobe_path": "ffprobe",
         }
+
+    def inspect(self, path: str | Path) -> VideoMetadata:
+        return VideoMetadata(width=1920, height=1080, fps=60.0, duration_sec=10.0, rotation_deg=0)
 
 
 class ImmediateExportTaskRunner:
@@ -107,6 +119,8 @@ def test_export_workspace_uses_widget_layouts_from_shared_session(tmp_path: Path
         export_task_runner=ImmediateExportTaskRunner(export_service),
     )
     workspace.load_telemetry(telemetry)
+    workspace.video_path_input.setText("sample.mp4")
+    workspace.read_video_metadata()
     workspace.output_dir_input.setText(str(tmp_path))
     workspace.start_export()
 
@@ -149,10 +163,82 @@ def test_export_workspace_skips_hidden_widgets_from_shared_session(tmp_path: Pat
         export_task_runner=ImmediateExportTaskRunner(export_service),
     )
     workspace.load_telemetry(telemetry)
+    workspace.video_path_input.setText("sample.mp4")
+    workspace.read_video_metadata()
     workspace.output_dir_input.setText(str(tmp_path))
     workspace.start_export()
 
     widget_names = [widget.__class__.__name__ for widget in export_service.last_execute_kwargs["widgets"]]
     assert "SpeedWidget" in widget_names
     assert "MiniTrackWidget" not in widget_names
+    app.quit()
+
+
+def test_export_workspace_skips_hidden_g_force_widget_from_shared_session(tmp_path: Path):
+    app = QApplication.instance() or QApplication([])
+    session = ProjectSession()
+    session.set_widget_layouts(
+        {
+            "speed": {"x": 160, "y": 220, "enabled": True},
+            "g_force": {"x": 520, "y": 240, "enabled": False},
+        }
+    )
+    telemetry = TelemetryStore(
+        samples=[
+            TelemetrySample(sample_index=0, elapsed_sec=0.0, x_m=0.0, y_m=0.0, speed_kmh=40.0),
+            TelemetrySample(sample_index=1, elapsed_sec=1.0, x_m=10.0, y_m=10.0, speed_kmh=50.0),
+        ]
+    )
+    export_service = FakeExportService()
+    workspace = ExportWorkspace(
+        session=session,
+        export_service=export_service,
+        video_metadata_service=FakeVideoMetadataService(),
+        export_task_runner=ImmediateExportTaskRunner(export_service),
+    )
+    workspace.load_telemetry(telemetry)
+    workspace.video_path_input.setText("sample.mp4")
+    workspace.read_video_metadata()
+    workspace.output_dir_input.setText(str(tmp_path))
+    workspace.start_export()
+
+    widget_names = [widget.__class__.__name__ for widget in export_service.last_execute_kwargs["widgets"]]
+    assert "SpeedWidget" in widget_names
+    assert "GForceWidget" not in widget_names
+    app.quit()
+
+
+def test_export_workspace_uses_loaded_widget_dimensions_from_shared_session(tmp_path: Path):
+    app = QApplication.instance() or QApplication([])
+    session = ProjectSession()
+    session.set_widget_layouts(
+        {
+            "speed": {"x": 160, "y": 220, "width": 420, "height": 160, "enabled": True},
+            "mini_track": {"x": 900, "y": 80, "width": 280, "height": 180, "enabled": True},
+        }
+    )
+    telemetry = TelemetryStore(
+        samples=[
+            TelemetrySample(sample_index=0, elapsed_sec=0.0, x_m=0.0, y_m=0.0, speed_kmh=40.0),
+            TelemetrySample(sample_index=1, elapsed_sec=1.0, x_m=10.0, y_m=10.0, speed_kmh=50.0),
+        ]
+    )
+    export_service = FakeExportService()
+    workspace = ExportWorkspace(
+        session=session,
+        export_service=export_service,
+        video_metadata_service=FakeVideoMetadataService(),
+        export_task_runner=ImmediateExportTaskRunner(export_service),
+    )
+    workspace.load_telemetry(telemetry)
+    workspace.video_path_input.setText("sample.mp4")
+    workspace.read_video_metadata()
+    workspace.output_dir_input.setText(str(tmp_path))
+    workspace.start_export()
+
+    widgets = {widget.__class__.__name__: widget for widget in export_service.last_execute_kwargs["widgets"]}
+    assert widgets["SpeedWidget"].width == 420
+    assert widgets["SpeedWidget"].height == 160
+    assert widgets["MiniTrackWidget"].width == 280
+    assert widgets["MiniTrackWidget"].height == 180
     app.quit()

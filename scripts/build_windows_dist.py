@@ -80,11 +80,10 @@ def validate_tool_paths(ffmpeg_path: Path, ffprobe_path: Path) -> None:
 
 def resolve_runtime_dlls() -> dict[str, Path]:
     conda_prefix = Path(sys.prefix)
-    library_bin = conda_prefix / "Library" / "bin"
     resolved: dict[str, Path] = {}
     missing: list[str] = []
     for dll_name in RUNTIME_DLL_NAMES:
-        candidate = library_bin / dll_name
+        candidate = _resolve_runtime_dll(dll_name=dll_name, prefix=conda_prefix)
         if candidate.exists():
             resolved[dll_name] = candidate
         else:
@@ -92,6 +91,48 @@ def resolve_runtime_dlls() -> dict[str, Path]:
     if missing:
         raise FileNotFoundError(f"Missing runtime DLLs: {', '.join(missing)}")
     return resolved
+
+
+def _resolve_runtime_dll(*, dll_name: str, prefix: Path) -> Path:
+    for directory in _runtime_dll_search_dirs(prefix=prefix):
+        candidate = directory / dll_name
+        if candidate.exists():
+            return candidate
+    cached = _find_conda_cached_dll(dll_name)
+    if cached is not None:
+        return cached
+    return prefix / "Library" / "bin" / dll_name
+
+
+def _runtime_dll_search_dirs(*, prefix: Path) -> list[Path]:
+    dirs: list[Path] = []
+    explicit = os.getenv("KART_OVERLAY_RUNTIME_DLL_DIR", "").strip()
+    if explicit:
+        dirs.append(Path(explicit))
+    dirs.extend(
+        [
+            prefix / "Library" / "bin",
+            prefix / "DLLs",
+            prefix,
+        ]
+    )
+    conda_prefix = os.getenv("CONDA_PREFIX", "").strip()
+    if conda_prefix:
+        conda_path = Path(conda_prefix)
+        dirs.extend([conda_path / "Library" / "bin", conda_path / "DLLs"])
+    return dirs
+
+
+def _find_conda_cached_dll(dll_name: str) -> Path | None:
+    package_cache = Path.home() / ".conda" / "pkgs"
+    if not package_cache.exists():
+        return None
+    matches = sorted(
+        package_cache.glob(f"*/Library/bin/{dll_name}"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    return matches[0] if matches else None
 
 
 def build_readme_text() -> str:
@@ -214,8 +255,11 @@ def main() -> int:
     copy_bundled_tools(dist_dir=dist_dir, ffmpeg_path=ffmpeg_path, ffprobe_path=ffprobe_path)
     copy_runtime_dlls(dist_dir=dist_dir, runtime_dlls=runtime_dlls)
     write_packaged_readme(dist_dir=dist_dir)
-    run_inno_setup(root=root, dist_dir=dist_dir)
     create_distribution_archive(dist_dir=dist_dir)
+    try:
+        run_inno_setup(root=root, dist_dir=dist_dir)
+    except FileNotFoundError as error:
+        print(f"Installer skipped: {error}", file=sys.stderr)
     return 0
 
 

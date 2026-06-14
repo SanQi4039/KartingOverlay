@@ -1,3 +1,663 @@
+### 2026-06-14 Packaging Run - Export widget visual scale build
+
+The Windows package was rebuilt from the current workspace after fixing export-time widget visual scaling for reduced overlay resolutions such as 720p.
+
+Command:
+
+1. `$env:KART_OVERLAY_INNO_SETUP_PATH='C:\Users\Z\AppData\Local\Programs\Inno Setup 6\ISCC.exe'; C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe scripts\build_windows_dist.py`
+
+Generated artifacts:
+
+1. `dist\KartOverlay\KartOverlay.exe` (`2,155,318` bytes)
+2. `dist\KartOverlay-Setup.exe` (`149,299,544` bytes)
+3. `dist\KartOverlay-windows-x64.zip` (`221,570,364` bytes)
+
+Verification:
+
+1. bundled `tools\ffmpeg\bin\ffmpeg.exe` exists (`227,398,656` bytes)
+2. bundled `tools\ffmpeg\bin\ffprobe.exe` exists (`227,193,344` bytes)
+3. bundled `_internal\python312.dll` exists (`6,971,904` bytes)
+4. `README-Packaged.txt` exists (`554` bytes)
+5. portable `dist\KartOverlay\KartOverlay.exe` launched and stayed alive for 5 seconds, then was stopped intentionally
+
+### 2026-06-14 Incremental Update - Export widget visual scale consistency
+
+This pass fixes the mismatch where exporting to 720p/1080p scaled widget geometry but left widget internals visually close to the original canvas size.
+
+Implemented:
+
+1. `kart_overlay/ui/export_workspace.py`
+   - `ExportWidgetScaleInfo` now records `visual_scale`
+   - export-only widget copies still scale `x`, `y`, `width`, and `height`
+   - export-only widget copies now also receive `visual_scale = min(scale_x, scale_y)`
+   - export manifests now include `widget_visual_scale`
+2. `kart_overlay/widgets/base.py`
+   - overlay widgets now have `visual_scale`
+   - text helpers use `effective_font_scale = font_scale * visual_scale`
+   - length helpers scale line/marker dimensions for export copies
+3. `kart_overlay/widgets/hud_theme.py`
+   - HUD metrics/layout can use export visual ratios below the editor font lower bound
+   - default 100% editor rendering remains unchanged
+4. Widget renderers
+   - custom components that directly computed `hud_card_layout` now use `effective_font_scale`
+   - updated: coordinates, G-force, heading, height, and mini-track widgets
+5. `tests/unit/test_export_workspace.py`
+   - added regression coverage that 720p export records and applies widget visual scale without mutating session layouts
+
+Verification:
+
+1. Red test before implementation:
+   - `tests\unit\test_export_workspace.py::test_export_workspace_scales_export_widget_copies_without_mutating_session`
+   - failed because exported speed widget had `visual_scale == 1.0` instead of `720 / 1080`
+2. Green target test:
+   - same test now passed
+3. Related suite:
+   - `tests\unit\test_export_workspace.py tests\unit\test_hud_theme_scaling.py tests\unit\test_canvas_workspace.py`
+   - result: `41 passed in 0.76s`
+4. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+
+### 2026-06-14 Packaging Run - Project panel per-section help build
+
+The Windows package was rebuilt from the current workspace after moving each left panel explanation under its own file section.
+
+Command:
+
+1. `$env:KART_OVERLAY_INNO_SETUP_PATH='C:\Users\Z\AppData\Local\Programs\Inno Setup 6\ISCC.exe'; C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe scripts\build_windows_dist.py`
+
+Generated artifacts:
+
+1. `dist\KartOverlay\KartOverlay.exe` (`2,154,207` bytes)
+2. `dist\KartOverlay-Setup.exe` (`149,288,335` bytes)
+3. `dist\KartOverlay-windows-x64.zip` (`221,569,714` bytes)
+
+Verification:
+
+1. bundled `tools\ffmpeg\bin\ffmpeg.exe` exists (`227,398,656` bytes)
+2. bundled `tools\ffmpeg\bin\ffprobe.exe` exists (`227,193,344` bytes)
+3. bundled `_internal\python312.dll` exists (`6,971,904` bytes)
+4. `README-Packaged.txt` exists (`554` bytes)
+5. portable `dist\KartOverlay\KartOverlay.exe` launched and stayed alive for 5 seconds, then was stopped intentionally
+
+### 2026-06-14 Incremental Update - Project panel help text per section
+
+This pass moves each left panel file-purpose explanation back into its own section after the user requested that every section keep its own description below the related controls.
+
+Implemented:
+
+1. `kart_overlay/ui/project_panel.py`
+   - `_build_file_section` now accepts an optional `help_label`
+   - telemetry, background image, and video help labels are added inside their matching sections instead of being grouped below the project section
+   - the top-level left panel order remains: telemetry data -> background image -> video -> project
+2. `tests/unit/test_project_panel.py`
+   - updated layout regression coverage so each help label must live inside its matching section
+   - kept coverage that help labels are no longer direct children of the top-level layout
+
+Verification:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+2. `$env:QT_QPA_PLATFORM='offscreen'; C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_project_panel.py -q --basetemp=C:\Users\Z\AppData\Local\Temp\video-tip-pytest-codex-panel-layout`
+   - result: `9 passed in 1.13s`
+
+### 2026-06-14 Packaging Run - Project panel import section layout build
+
+The Windows package was rebuilt from the current workspace after restructuring the left project panel import sections.
+
+Command:
+
+1. `$env:KART_OVERLAY_INNO_SETUP_PATH='C:\Users\Z\AppData\Local\Programs\Inno Setup 6\ISCC.exe'; C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe scripts\build_windows_dist.py`
+
+Generated artifacts:
+
+1. `dist\KartOverlay\KartOverlay.exe` (`2,154,183` bytes)
+2. `dist\KartOverlay-Setup.exe` (`149,303,830` bytes)
+3. `dist\KartOverlay-windows-x64.zip` (`221,570,249` bytes)
+
+Verification:
+
+1. bundled `tools\ffmpeg\bin\ffmpeg.exe` exists (`227,398,656` bytes)
+2. bundled `tools\ffmpeg\bin\ffprobe.exe` exists (`227,193,344` bytes)
+3. bundled `_internal\python312.dll` exists (`6,971,904` bytes)
+4. `README-Packaged.txt` exists (`554` bytes)
+5. portable `dist\KartOverlay\KartOverlay.exe` launched and stayed alive for 5 seconds, then was stopped intentionally
+
+### 2026-06-14 Incremental Update - Project panel import section layout
+
+This pass restructures the left project panel operation area so all file inputs use the same pattern and appear in the requested order.
+
+Implemented:
+
+1. `kart_overlay/ui/project_panel.py`
+   - added `background_path_input` so background images have their own file field
+   - split the operation area into ordered sections:
+     `遥测数据` -> `背景图` -> `视频` -> `项目` -> helper text
+   - each file section now uses the same structure:
+     title, file field, browse button, status label, and progress bar where applicable
+   - browsing or loading a background image now synchronizes the background file field
+2. `tests/unit/test_project_panel.py`
+   - added regression coverage for section order
+   - added coverage that background browsing updates the new background file field
+
+Verification:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_project_panel.py -q --basetemp=C:\Users\Z\AppData\Local\Temp\video-tip-pytest-codex`
+   - result: `9 passed in 0.44s`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+
+### 2026-06-14 Packaging Run - Project helper text placement build
+
+The Windows package was rebuilt from the current workspace after moving the telemetry/video/background helper text below the left-side operation area.
+
+Command:
+
+1. `$env:KART_OVERLAY_INNO_SETUP_PATH='C:\Users\Z\AppData\Local\Programs\Inno Setup 6\ISCC.exe'; C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe scripts\build_windows_dist.py`
+
+Generated artifacts:
+
+1. `dist\KartOverlay\KartOverlay.exe` (`2,153,423` bytes)
+2. `dist\KartOverlay-Setup.exe` (`149,283,207` bytes)
+3. `dist\KartOverlay-windows-x64.zip` (`221,568,184` bytes)
+
+Verification:
+
+1. bundled `tools\ffmpeg\bin\ffmpeg.exe` exists (`227,398,656` bytes)
+2. bundled `tools\ffmpeg\bin\ffprobe.exe` exists (`227,193,344` bytes)
+3. bundled `_internal\python312.dll` exists (`6,971,904` bytes)
+4. `README-Packaged.txt` exists
+5. portable `dist\KartOverlay\KartOverlay.exe` launched and stayed alive for 5 seconds, then was stopped intentionally
+
+### 2026-06-14 Incremental Update - Project panel helper text placement
+
+This pass moves the telemetry/video/background helper text out of the middle of the left operation flow.
+
+Implemented:
+
+1. `kart_overlay/ui/project_panel.py`
+   - the three helper labels now appear below the main operation area, after the project save/load status
+   - file inputs, import buttons, progress bars, and status labels remain grouped above as the primary operation flow
+2. `tests/unit/test_project_panel.py`
+   - added layout-order coverage to keep the helper text below the operation area
+
+Verification:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_project_panel.py -q --basetemp=C:\Users\Z\AppData\Local\Temp\video-tip-pytest-codex`
+   - result: `8 passed in 0.55s`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+
+### 2026-06-14 Packaging Run - HUD centering and editor guidance build
+
+The Windows package was rebuilt from the current workspace after the HUD centering, project helper text, track shortcut help, and canvas widget selection sync fixes.
+
+Command:
+
+1. `$env:KART_OVERLAY_INNO_SETUP_PATH='C:\Users\Z\AppData\Local\Programs\Inno Setup 6\ISCC.exe'; C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe scripts\build_windows_dist.py`
+
+Generated artifacts:
+
+1. `dist\KartOverlay\KartOverlay.exe` (`2,153,424` bytes)
+2. `dist\KartOverlay-Setup.exe` (`149,313,775` bytes)
+3. `dist\KartOverlay-windows-x64.zip` (`221,569,182` bytes)
+
+Verification:
+
+1. bundled `tools\ffmpeg\bin\ffmpeg.exe` exists (`227,398,656` bytes)
+2. bundled `tools\ffmpeg\bin\ffprobe.exe` exists (`227,193,344` bytes)
+3. bundled `_internal\python312.dll` exists (`6,971,904` bytes)
+4. `README-Packaged.txt` exists
+5. portable `dist\KartOverlay\KartOverlay.exe` launched and stayed alive for 5 seconds, then was stopped intentionally
+
+### 2026-06-14 Incremental Update - HUD centering and editor guidance
+
+This pass improves canvas/editor usability without changing export formats or telemetry calculations.
+
+Implemented:
+
+1. `kart_overlay/widgets/hud_theme.py`
+   - shared HUD card titles now draw centered in the card
+   - shared main values draw centered; value + unit pairs are centered as one visual group
+   - shared footer text draws centered
+2. `kart_overlay/widgets/coordinates_widget.py`
+   - latitude, longitude, and GPS footer text now align to the card center
+3. `kart_overlay/ui/project_panel.py`
+   - added left-panel helper text explaining telemetry files, video files, and background images
+   - the video helper explicitly mentions alignment and first-frame preview
+   - the background helper explains using screenshots to place start/finish and sector lines
+4. `kart_overlay/ui/track_workspace.py`
+   - added right-side shortcut help in the bottom operation bar:
+     `左键拖动改变轨迹位置`, `右键旋转`, `Ctrl+滚轮放大缩小`
+5. `kart_overlay/ui/canvas_workspace.py`
+   - preview-canvas widget selection now calls `select_widget()` directly
+   - this fixes the case where selecting the same list item from the preview did not refresh `_selected_widget_key`, leaving settings controls unable to write changes until another component was selected
+
+Verification:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_hud_theme_restyle.py tests\unit\test_project_panel.py tests\unit\test_track_workspace.py tests\unit\test_canvas_workspace.py -q --basetemp=C:\Users\Z\AppData\Local\Temp\video-tip-pytest-codex`
+   - result: `64 passed in 15.26s`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+3. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest -q --basetemp=C:\Users\Z\AppData\Local\Temp\video-tip-pytest-codex`
+   - result: `220 passed in 53.68s`
+
+### 2026-06-14 Packaging Run - Font scale upper limit removal build
+
+The Windows package was rebuilt from the current workspace after removing the selected-widget font scale upper bound.
+
+Command:
+
+1. `$env:KART_OVERLAY_INNO_SETUP_PATH='C:\Users\Z\AppData\Local\Programs\Inno Setup 6\ISCC.exe'; C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe scripts\build_windows_dist.py`
+
+Generated artifacts:
+
+1. `dist\KartOverlay\KartOverlay.exe` (`2,152,473` bytes)
+2. `dist\KartOverlay-Setup.exe` (`149,311,903` bytes)
+3. `dist\KartOverlay-windows-x64.zip` (`221,567,791` bytes)
+
+Verification:
+
+1. bundled `tools\ffmpeg\bin\ffmpeg.exe` exists (`227,398,656` bytes)
+2. bundled `tools\ffmpeg\bin\ffprobe.exe` exists (`227,193,344` bytes)
+3. bundled `_internal\python312.dll` exists (`6,971,904` bytes)
+4. `README-Packaged.txt` exists
+5. portable `dist\KartOverlay\KartOverlay.exe` launched and stayed alive for 5 seconds, then was stopped intentionally
+
+### 2026-06-14 Incremental Update - Font scale upper limit removed
+
+This pass removes the selected-widget font scale upper bound while keeping the `70%` lower bound. Large saved font scales now remain intact, and the font `+` button can continue stepping past `180%`.
+
+Implemented:
+
+1. `kart_overlay/widgets/hud_theme.py`
+   - `clamp_font_scale()` now only clamps below `MIN_FONT_SCALE`
+   - removed the `MAX_FONT_SCALE` cap so explicit values such as `250%` are preserved
+2. `kart_overlay/ui/canvas_workspace.py`
+   - removed the UI-side `180%` cap from the selected-widget font increase button
+3. Tests
+   - added coverage for preserving large explicit font scales
+   - added coverage for button stepping beyond `180%` and retaining the `70%` lower limit
+
+Verification:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_hud_theme_scaling.py tests\unit\test_canvas_workspace.py -q`
+   - result: `31 passed`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+3. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest -q --basetemp=C:\Users\Z\AppData\Local\Temp\video-tip-pytest-codex`
+   - result: `216 passed in 52.13s`
+
+### 2026-06-14 Packaging Run - Independent widget font scale build
+
+The Windows package was rebuilt from the current workspace after the independent per-widget font scale controls were added.
+
+Command:
+
+1. `$env:KART_OVERLAY_INNO_SETUP_PATH='C:\Users\Z\AppData\Local\Programs\Inno Setup 6\ISCC.exe'; C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe scripts\build_windows_dist.py`
+
+Generated artifacts:
+
+1. `dist\KartOverlay\KartOverlay.exe` (`2,152,549` bytes)
+2. `dist\KartOverlay-Setup.exe` (`149,282,178` bytes)
+3. `dist\KartOverlay-windows-x64.zip` (`221,568,678` bytes)
+
+Verification:
+
+1. bundled `tools\ffmpeg\bin\ffmpeg.exe` exists (`227,398,656` bytes)
+2. bundled `tools\ffmpeg\bin\ffprobe.exe` exists (`227,193,344` bytes)
+3. bundled `_internal\python312.dll` exists
+4. `README-Packaged.txt` exists
+5. portable `dist\KartOverlay\KartOverlay.exe` launched and stayed alive for 5 seconds, then was stopped intentionally
+
+### 2026-06-14 Incremental Update - Independent widget font scale controls
+
+This pass separates widget text scale from widget container resize. It keeps the prior content-driven card sizing behavior, but adds an explicit per-widget font scale control so users can enlarge or shrink text without using the resize handles as an implicit font control.
+
+Implemented:
+
+1. `kart_overlay/widgets/hud_theme.py`
+   - added `DEFAULT_FONT_SCALE`, `MIN_FONT_SCALE`, and `clamp_font_scale()`
+   - `hud_card_metrics()` and `hud_card_layout()` now accept `font_scale`
+   - title/value/unit/footer text keep their relative proportions while scaling together
+   - progress bars, track graphics, and card backgrounds continue to use the actual widget rectangle rather than font scale
+2. `kart_overlay/widgets/base.py`
+   - `OverlayWidget` now stores clamped `font_scale`
+   - `font_px()` follows explicit font scale instead of widget width/height
+   - `length_px()` stays geometry-stable so graph/marker strokes do not scale with text
+   - minimum widget dimensions can grow with font scale to avoid clipping when text is enlarged
+3. `kart_overlay/widgets/*`
+   - metric widgets pass `card_kwargs()` to static/full render paths and `text_kwargs()` to dynamic text paths
+   - custom widgets such as coordinates, heading, G-force cards, G-force ball, mini-track, and height chart pass `font_scale` into `hud_card_layout()`
+   - static-layer export remains consistent because static titles and dynamic values use the same scale
+4. `kart_overlay/widgets/widget_factory.py`
+   - default widget layouts now carry `font_scale=1.0`
+   - widget construction passes saved `font_scale` into widget instances
+5. `kart_overlay/ui/canvas_workspace.py`
+   - added selected-widget `字体 -` and `字体 +` buttons with a `字体 N%` label
+   - buttons step the selected widget by `10%`, clamped only to a `70%` lower bound
+   - drag resize remains container-only; if enlarged text would no longer fit, the widget clamps up to the scaled minimum bounds
+6. `kart_overlay/ui/project_panel.py`
+   - project loading now restores saved `font_scale`
+7. Tests
+   - added coverage for explicit font scaling, canvas font buttons, widget factory propagation, and project save/load roundtrip
+
+Verification evidence:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_hud_theme_scaling.py tests\unit\test_canvas_workspace.py tests\unit\test_widget_factory_analysis.py -q`
+   - result: `34 passed`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_project_workflow_roundtrip.py -q --basetemp=C:\Users\Z\AppData\Local\Temp\video-tip-pytest-codex`
+   - result: `1 passed`
+3. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+4. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest -q --basetemp=C:\Users\Z\AppData\Local\Temp\video-tip-pytest-codex`
+   - result: `213 passed in 71.27s`
+
+Remaining notes:
+
+1. Font scale is per component and persists through project files.
+2. Shrinking text does not auto-shrink the card; this avoids unexpected layout movement. Users can manually drag the card smaller afterward.
+3. The implementation intentionally does not scale mini-track strokes, G-ball geometry, or chart bars with text scale.
+
+### 2026-06-13 Packaging Run - Opacity and content-size clamp build
+
+The Windows package was rebuilt from the current workspace after the widget opacity, content-driven size clamp, and default desktop export directory fixes.
+
+Command:
+
+1. `$env:KART_OVERLAY_INNO_SETUP_PATH='C:\Users\Z\AppData\Local\Programs\Inno Setup 6\ISCC.exe'; C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe scripts\build_windows_dist.py`
+
+Generated artifacts:
+
+1. `dist\KartOverlay\KartOverlay.exe` (`2,149,304` bytes)
+2. `dist\KartOverlay-Setup.exe` (`149,290,776` bytes)
+3. `dist\KartOverlay-windows-x64.zip` (`221,564,970` bytes)
+
+Verification:
+
+1. bundled `tools\ffmpeg\bin\ffmpeg.exe` exists (`227,398,656` bytes)
+2. bundled `tools\ffmpeg\bin\ffprobe.exe` exists (`227,193,344` bytes)
+3. bundled `_internal\python312.dll` exists
+4. `README-Packaged.txt` exists
+5. portable `dist\KartOverlay\KartOverlay.exe` launched and stayed alive for 5 seconds, then was stopped intentionally
+
+### 2026-06-13 Packaging Run - HUD static-layer export optimization build
+
+The Windows package was rebuilt from the current workspace after the standard HUD static-layer export optimization.
+
+Command:
+
+1. `$env:KART_OVERLAY_INNO_SETUP_PATH='C:\Users\Z\AppData\Local\Programs\Inno Setup 6\ISCC.exe'; C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe scripts\build_windows_dist.py`
+
+Generated artifacts:
+
+1. `dist\KartOverlay\KartOverlay.exe`
+2. `dist\KartOverlay-Setup.exe` (`149,287,697` bytes)
+3. `dist\KartOverlay-windows-x64.zip` (`221,563,186` bytes)
+
+Verification:
+
+1. bundled `tools\ffmpeg\bin\ffmpeg.exe` exists
+2. bundled `tools\ffmpeg\bin\ffprobe.exe` exists
+3. portable `dist\KartOverlay\KartOverlay.exe` launched and stayed alive for 5 seconds, then was stopped intentionally
+
+### 2026-06-13 Incremental Update - Standard HUD static-layer export optimization
+
+This pass further optimizes transparent overlay export speed without changing export duration, frame count, alpha format, or widget layout semantics.
+
+Root cause:
+
+1. The renderer already supported a cached static layer, but only `MiniTrackWidget` opted into it.
+2. Standard metric cards still redrew card backgrounds, borders, titles, and static scales every exported frame.
+3. At 50 fps over a 25-minute export, that repeated static HUD chrome can be drawn roughly 75,000 times per enabled widget.
+
+Implemented:
+
+1. `kart_overlay/widgets/hud_theme.py`
+   - split metric card drawing into `draw_metric_card_static()` and `draw_metric_card_dynamic()`
+   - kept `draw_metric_card()` as the compatibility wrapper
+   - retained the speed-card rule that hides the old km/h progress/tick visual
+2. `kart_overlay/widgets/speed_widget.py`
+   - opted into `supports_static_render`
+   - static layer draws card background/title only once per renderer
+   - dynamic layer draws the speed value per frame
+3. `kart_overlay/widgets/timer_widget.py`
+   - opted into `supports_static_render`
+   - static layer draws card background/title once
+   - dynamic layer draws lap time and progress per frame
+4. `kart_overlay/widgets/altitude_widget.py`
+   - opted into `supports_static_render`
+   - static layer draws card chrome once
+   - dynamic layer draws altitude value per frame
+5. `kart_overlay/widgets/height_widget.py`
+   - opted into `supports_static_render`
+   - static layer draws card chrome, tick labels, and mini chart once
+   - dynamic layer draws relative height value per frame
+6. `kart_overlay/widgets/lap_summary_widget.py`
+   - opted into `supports_static_render`
+   - static layer draws card chrome once
+   - dynamic layer draws lap count/progress per frame
+
+Tests and verification:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_frame_renderer.py -q`
+   - result: `7 passed`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_frame_renderer.py tests\unit\test_hud_theme_restyle.py tests\unit\test_hud_theme_scaling.py tests\unit\test_export_execution.py tests\unit\test_export_workspace.py tests\unit\test_export_widget_layout_bridge.py -q`
+   - result: `34 passed`
+3. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest -q`
+   - result: `205 passed in 75.84s`
+4. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+
+Remaining performance notes:
+
+1. This reduces repeated Python/Qt painting work for common metric cards.
+2. Full-frame RGBA byte conversion and ffmpeg pipe/encoder throughput still remain major costs for long transparent exports.
+3. Dynamic-heavy widgets such as G-force bars, heading, coordinates, lap distance, sector status, and best-lap gap can be split in a future pass if profiling shows render time is still dominant.
+
+### 2026-06-13 Packaging Run - Per-widget opacity build
+
+The Windows package was rebuilt from the current workspace after the per-widget opacity/default-hidden HUD changes.
+
+Command:
+
+1. `$env:KART_OVERLAY_INNO_SETUP_PATH='C:\Users\Z\AppData\Local\Programs\Inno Setup 6\ISCC.exe'; C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe scripts\build_windows_dist.py`
+
+Generated artifacts:
+
+1. `dist\KartOverlay\KartOverlay.exe`
+2. `dist\KartOverlay-Setup.exe` (`149,285,430` bytes)
+3. `dist\KartOverlay-windows-x64.zip` (`221,560,822` bytes)
+
+Verification:
+
+1. bundled `tools\ffmpeg\bin\ffmpeg.exe` exists
+2. bundled `tools\ffmpeg\bin\ffprobe.exe` exists
+3. portable `dist\KartOverlay\KartOverlay.exe` launched and stayed alive for 5 seconds, then was stopped intentionally
+
+### 2026-06-13 Incremental Update - Per-widget HUD opacity and default hidden widgets
+
+This pass implements the latest canvas/HUD behavior request without changing the export background model or broader page layout.
+
+Implemented:
+
+1. `kart_overlay/widgets/widget_factory.py`
+   - default widget layouts now start with `enabled=False`
+   - each default layout carries `background_opacity=96`
+   - speed default height is now `86`, matching the simplified value-only speed card
+   - widget construction passes per-widget opacity into the render widget copy
+2. `kart_overlay/widgets/base.py` and HUD widgets
+   - `OverlayWidget` now stores clamped `background_opacity` from 0 to 100
+   - shared HUD card drawing accepts custom opacity while preserving the old default visual alpha
+   - metric, coordinate, G-force, heading, and mini-track cards all use the same background opacity path
+   - speed cards no longer draw the lower progress/tick bar in the shared metric renderer
+3. `kart_overlay/ui/canvas_workspace.py`
+   - added a selected-widget `背景透明度` percent control
+   - selected widget visibility now defaults unchecked for new sessions
+   - clicking the visible checkbox is the explicit action that enables a component
+4. `kart_overlay/ui/project_panel.py`
+   - project load now preserves saved `background_opacity` in widget layouts
+
+Tests and verification:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_widget_factory_analysis.py tests\unit\test_canvas_workspace.py tests\unit\test_hud_theme_restyle.py tests\unit\test_project_workflow_roundtrip.py -q`
+   - result: `36 passed`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_export_widget_layout_bridge.py tests\unit\test_project_session_bridge.py tests\unit\test_project_panel.py tests\unit\test_frame_renderer.py tests\unit\test_export_workspace.py -q`
+   - result: `24 passed`
+3. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest -q`
+   - result: `202 passed in 72.95s`
+4. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+
+Notes:
+
+1. Existing projects that explicitly saved `enabled=True` still load visible.
+2. New projects now start with every widget hidden, so export tests and workflows must enable at least one component before exporting.
+3. The canvas background first-frame preview remains unchanged by this pass.
+
+### 2026-06-12 Incremental Update
+
+This pass implemented the scope from `本次修改指导总文档.md` around best-lap gap, track-line edit performance, bottom-bar spacing, and overlay export constraints.
+
+1. best-lap gap data and UI
+   - `kart_overlay/domain/timing/track_analysis.py`
+   - `kart_overlay/ui/track_results_panel.py`
+   - `kart_overlay/widgets/best_lap_gap_widget.py`
+   - `kart_overlay/widgets/widget_factory.py`
+   - `kart_overlay/ui/texts.py`
+   - added centralized gap formatting/status semantics: `BEST`, `--`, `+x.xxx`, `-x.xxx`
+   - negative delta is faster/green, positive delta is slower/red
+   - sector gap now compares against the fastest lap's same sector, not the global theoretical-best sector
+   - realtime gap uses precomputed lap distance profiles and interpolation instead of per-frame full telemetry scans
+2. track editor drag responsiveness
+   - `kart_overlay/ui/track_editor.py`
+   - endpoint dragging keeps the existing preview-only path and recomputes on release
+   - pending new-line preview now reuses a single `QGraphicsPathItem` instead of calling full `_render()` on every mouse move
+   - added recompute/endpoint commit/pending preview timing logs
+3. track workspace bottom operation bar
+   - `kart_overlay/ui/track_workspace.py`
+   - line/background/track groups now place titles next to their action controls
+   - operation bar minimum height was reduced so the title/button cluster reads as one compact control group
+4. overlay export resolution and performance
+   - `kart_overlay/ui/export_workspace.py`
+   - `kart_overlay/application/project_session.py`
+   - `kart_overlay/application/export_service.py`
+   - `kart_overlay/infrastructure/render/frame_renderer.py`
+   - `kart_overlay/infrastructure/render/ffmpeg_exporter.py`
+   - custom export width/height controls were removed from the export page
+   - export now exposes only `原始视频尺寸`, `1080p`, and `720p`, preserving source aspect ratio
+   - frame rendering reuses an RGBA buffer and handles non-tight image strides
+   - export logs now include render/to-bytes/pipe-write timing summaries
+   - `MiniTrackWidget` caches the static track path for the current geometry and only redraws the moving marker per frame
+
+Verification evidence:
+
+1. focused regression run
+   - `D:\Anaconda_env\karting\python.exe -m pytest -q --basetemp=tmp_pytest_run\base -o cache_dir=tmp_pytest_run\cache tests/unit/test_track_analysis.py tests/unit/test_track_results_panel.py tests/unit/test_track_editor_visual_feedback.py tests/unit/test_track_workspace.py tests/unit/test_widget_factory_analysis.py tests/unit/test_ui_texts.py tests/unit/test_export_workspace.py tests/unit/test_project_session_bridge.py tests/unit/test_project_workflow_roundtrip.py tests/unit/test_export_execution.py tests/unit/test_ffmpeg_exporter.py`
+   - result: `59 passed in 50.81s`
+2. full unit suite
+   - `D:\Anaconda_env\karting\python.exe -m pytest -q --basetemp=tmp_pytest_run\base -o cache_dir=tmp_pytest_run\cache`
+   - result: `171 passed in 92.64s`
+3. environment note
+   - bare `pytest` and default `python -m pytest` are still not usable from this shell
+   - sandboxed pytest hit temp-directory `PermissionError`, so the successful verification used the explicit project interpreter and an approved non-sandbox run
+
+### 2026-06-11 Incremental Update B
+
+This follow-up pass closed the three remaining tail items from the prior handoff:
+
+1. export encoder visibility
+   - `kart_overlay/application/export_service.py`
+   - `kart_overlay/infrastructure/render/ffmpeg_exporter.py`
+   - `kart_overlay/ui/export_workspace.py`
+   - export preparation/results now carry an `encoder_label`
+   - the export page now shows the selected encoder in preflight and completion status
+2. reload-safe widget geometry
+   - `kart_overlay/ui/project_panel.py`
+   - project reload now restores `width`, `height`, and `enabled` for widget layouts instead of dropping size back to defaults
+   - this fixes the preview/export geometry drift after manual resize + save + reload
+3. HUD copy consistency
+   - `kart_overlay/ui/texts.py`
+   - `kart_overlay/widgets/lap_summary_widget.py`
+   - `kart_overlay/widgets/best_lap_widget.py`
+   - `kart_overlay/widgets/sector_state_widget.py`
+   - `kart_overlay/widgets/mini_track_widget.py`
+   - `kart_overlay/widgets/heading_widget.py`
+   - `kart_overlay/widgets/g_force_widget.py`
+   - `kart_overlay/widgets/hud_theme.py`
+   - `lap_summary` display naming now matches the compact component intent as `圈数`
+   - heading directions now use Chinese compass labels
+   - several HUD card titles/labels are now explicit class-level text sources, which also makes regression tests easier
+
+Important clarification:
+
+1. the earlier “乱码源码” suspicion was not confirmed as widespread source corruption
+2. runtime inspection showed `ui/texts.py` was already valid UTF-8
+3. the real work here was copy consistency, not large-scale encoding repair
+
+Verification evidence:
+
+1. focused regression batch
+   - `D:\Anaconda_env\karting\python.exe -m pytest tests\unit\test_project_workflow_roundtrip.py tests\unit\test_project_panel.py tests\unit\test_project_session_bridge.py tests\unit\test_export_workspace.py tests\unit\test_export_workspace_errors.py tests\unit\test_export_widget_layout_bridge.py tests\unit\test_export_runner.py tests\unit\test_export_execution.py tests\unit\test_export_service.py tests\unit\test_ffmpeg_exporter.py tests\unit\test_ffprobe_service.py tests\unit\test_ui_texts.py tests\unit\test_hud_theme_restyle.py tests\unit\test_heading_widget.py tests\unit\test_g_force_widget.py tests\unit\test_mini_track_widget.py tests\unit\test_canvas_workspace.py tests\unit\test_frame_renderer.py tests\unit\test_track_workspace.py tests\unit\test_track_analysis.py tests\unit\test_track_results_panel.py tests\unit\test_track_inspector_panel.py -q`
+   - result: `94 passed`
+2. full unit suite
+   - `D:\Anaconda_env\karting\python.exe -m pytest -q`
+   - result: `157 passed in 59.97s`
+3. compile check
+   - `D:\Anaconda_env\karting\python.exe -m compileall kart_overlay tests`
+   - result: passed
+
+### 2026-06-11 Incremental Update C
+
+This pass implements the latest UI grouping and export-stability feedback:
+
+1. track workspace controls
+   - line operations are grouped under `线操作`
+   - background image import moved to `ProjectPanel`, next to telemetry import
+   - track workspace background controls now focus on clear, opacity, reset alignment, and transform nudges
+   - background opacity defaults to `100%`
+   - right-drag rotation direction is reversed
+2. canvas component visibility
+   - the visible duplicate `隐藏组件` button is no longer placed in the controls layout
+   - the `显示组件` checkbox remains the explicit visible toggle
+   - keyboard `Delete` now hides the selected component by writing `enabled=False`, preserving position and size
+3. HUD simplification
+   - numeric HUD widgets now render only the primary value
+   - G-force, heading, and mini-track components keep their main visual subject but drop small title/subtitle chrome
+4. MOV export stability
+   - transparent MOV export now stays on CPU `prores_ks` with `yuva444p10le`
+   - the previous automatic `prores_ks_vulkan` preference is superseded because the Vulkan encoder can stall after the first frame on current Windows FFmpeg builds
+
+Verification evidence:
+
+1. focused regression batch
+   - `D:\Anaconda_env\karting\python.exe -m pytest tests\unit\test_ffmpeg_exporter.py tests\unit\test_canvas_workspace.py tests\unit\test_track_workspace.py tests\unit\test_project_panel.py tests\unit\test_project_workflow_roundtrip.py tests\unit\test_hud_theme_restyle.py tests\unit\test_g_force_widget.py -q`
+   - result: `54 passed`
+2. full unit suite
+   - `D:\Anaconda_env\karting\python.exe -m pytest -q`
+   - result: `163 passed in 58.44s`
+3. compile check
+   - `D:\Anaconda_env\karting\python.exe -m compileall kart_overlay tests`
+   - result: passed
+
+### 2026-06-11 Packaging Run
+
+The Windows package was rebuilt from the current workspace:
+
+1. command
+   - `$env:KART_OVERLAY_INNO_SETUP_PATH='C:\Users\Z\AppData\Local\Programs\Inno Setup 6\ISCC.exe'; D:\Anaconda_env\karting\python.exe scripts\build_windows_dist.py`
+2. generated artifacts
+   - `dist\KartOverlay\KartOverlay.exe`
+   - `dist\KartOverlay-Setup.exe` (`149,448,249` bytes)
+   - `dist\KartOverlay-windows-x64.zip` (`221,827,170` bytes)
+3. bundled runtime checks
+   - `ffmpeg.exe` and `ffprobe.exe` are present under `dist\KartOverlay\tools\ffmpeg\bin`
+   - required Conda DLLs are present under `dist\KartOverlay\_internal`
+4. smoke verification
+   - portable `dist\KartOverlay\KartOverlay.exe` launched and stayed running for 5 seconds
+   - the smoke process was then stopped intentionally
+5. environment note
+   - Inno Setup was already installed via winget under `C:\Users\Z\AppData\Local\Programs\Inno Setup 6\ISCC.exe`, but it was not on the script's default lookup path, so the build used `KART_OVERLAY_INNO_SETUP_PATH`
+
 # AI Handoff
 
 ## 1. Current Goal
@@ -24,6 +684,15 @@
 - The Windows installer now targets a per-user install location under `{localappdata}\Programs\KartOverlay`, which removes the earlier elevation requirement from smoke verification.
 - `packaging/installer.iss` now declares `PrivilegesRequired=lowest`, and the packaging test suite asserts that contract directly.
 - Real Windows distribution verification has been rerun successfully across build, portable app launch, silent installer execution, and installed app launch.
+
+### 2026-06-11 Phase 7 Update
+
+- The HUD-only implementation phase has started landing without touching the main application UI layout.
+- `widget_factory` now carries an explicit non-overlapping default HUD geometry baseline for the default `1280x720` canvas.
+- `TelemetryInterpolator` now normalizes invalid heading values, preserves an internal acceleration-source marker at frame level, and falls back to conservative estimated G-force values when acceleration channels are missing.
+- `MiniTrackWidget` now renders a stronger broadcast-style current-position marker with halo plus an optional heading arrow when heading data is available.
+- Shared HUD card metrics have been tightened, and `CoordinatesWidget` has been reduced to a smaller tertiary footprint.
+- Added regression coverage for HUD geometry, heading safety, G-force estimation, mini-track arrow behavior, and preview/export hidden-state parity.
 
 ## 2. Repository Status
 
@@ -104,7 +773,7 @@
 ## 4. Completed Work
 
 - 2026-06-11 补充：`Phase 3` 已开始落地，当前范围只覆盖 Canvas 侧组件可见性语义、尺寸标注和相关文案收口，没有进入导出基础设施或 sync 清理。
-- 2026-06-11 补充：`CanvasWorkspace` 现在新增 `隐藏组件` 按钮，语义是把当前组件写成 `enabled=False`，不会删除布局数据。
+- 2026-06-11 补充：`CanvasWorkspace` 的可见 UI 已收口到 `显示组件` 勾选；键盘 `Delete` 会把当前组件写成 `enabled=False`，不会删除布局数据。
 - 2026-06-11 补充：Canvas 左侧勾选语义已收口为 `显示组件`，和底层 `enabled` 状态保持一致，避免“按钮文案和实际行为相反”。
 - 2026-06-11 补充：`CanvasPreviewWidget` 现在会在预览画布边缘绘制尺寸边框与宽高标注。
 - 2026-06-11 补充：导出桥接已验证继续按 `enabled` 过滤隐藏组件，因此本轮没有引入额外兼容层。
@@ -127,7 +796,7 @@
 - 已实现 GPX/VBO 导入主路径，README 与测试显示样例 `test.gpx`、`test.vbo` 已接入真实解析链路，统一归一化为 `TelemetryStore`。
 - 已实现赛道定义与计时分析基础能力，包括起终线、分段线、圈速、分段结果、最佳圈与分析汇总，对应 `kart_overlay/domain/timing/` 与 `kart_overlay/ui/track_editor.py`。
 - 已实现赛道编辑页的 results-first 布局，包含顶部结果/编辑双栏和底部操作条；说明“结果优先 + 可拖拽布局”的 UI 方向已经落地到代码。
-- 已完成本地背景图工作流，支持导入、替换、清除、透明度调整、持久化背景图路径，并把 `DisplayTransform` 用于轨迹层对齐。
+- 已完成本地背景图工作流，背景图入口位于项目流程面板并靠近遥测导入；赛道页保留清除、透明度调整、持久化背景图路径，并把 `DisplayTransform` 用于轨迹层对齐。
 - 已实现画布编辑器与矢量预览，支持组件启停、位置/尺寸修改、直接拖拽与缩放；当前组件集已超过 README 中列举的最小值。
 - 已实现透明 MOV 导出工作流，包括视频元数据读取、导出预检、后台任务、进度、取消、日志和 manifest 写出；当前 UI 暴露的最终导出格式为 `mov_prores_4444`。
 - 已实现项目保存/加载，能保存并恢复遥测路径、视频路径、赛道定义、背景图路径、组件布局和导出设置；说明当前工作流已经具备“可复用项目文件”的基础闭环。
@@ -382,3 +1051,368 @@ $env:KART_OVERLAY_INNO_SETUP_PATH='C:\Path\To\ISCC.exe'; D:\Anaconda_env\karting
 当前最重要的风险不是单个功能崩溃，而是版本控制边界混乱、sync 历史残留、打包链路尚未重新烟测。  
 如果下一位接手者继续推进，建议先从 sync 残留盘点和无效测试断言修正开始，再决定是否进入打包实测或 UI 文案收尾。  
 另外，更新设计/交接文档时应保留历史增量，不要把旧设计直接覆盖掉，因为当前 docs 仍承担实现演进记录的作用。
+### 2026-06-11 Incremental Update
+
+This pass completed three concrete slices:
+
+1. track timing and lap-results fixes
+   - `kart_overlay/domain/timing/track_analysis.py`
+   - `kart_overlay/ui/track_results_panel.py`
+   - the builder now emits `N + 1` timed segments for `N` sector lines, including the tail segment back to start/finish
+   - `current_sector_name_at()` now reports the active segment, not the last completed one
+   - the results panel now appends per-lap split text (`S1 / S2 / S3 ...`) into each lap row and allows horizontal scrolling
+2. HUD mini-track live marker correction
+   - `kart_overlay/widgets/mini_track_widget.py`
+   - the moving dot and heading arrow now use the same track-bounds normalization as the rendered polyline, so the live point stays on the displayed path
+3. export subprocess stability and acceleration groundwork
+   - `kart_overlay/infrastructure/render/ffmpeg_exporter.py`
+   - `kart_overlay/infrastructure/video/ffprobe_service.py`
+   - `ffmpeg`/`ffprobe` now launch with hidden-window flags on Windows
+   - `ffmpeg` logging no longer keeps long-running `stderr` buffered in a pipe
+   - superseded: the exporter no longer prefers `prores_ks_vulkan`; transparent MOV output now stays on CPU `prores_ks` because the Vulkan path can stall after the first frame
+
+Tests added or strengthened in this pass:
+
+1. `tests/unit/test_track_analysis.py`
+2. `tests/unit/test_track_results_panel.py`
+3. `tests/unit/test_mini_track_widget.py`
+4. `tests/unit/test_ffmpeg_exporter.py`
+5. `tests/unit/test_ffprobe_service.py`
+
+Verification evidence:
+
+1. targeted regression run
+   - `D:\Anaconda_env\karting\python.exe -m pytest tests\unit\test_ffmpeg_exporter.py tests\unit\test_ffprobe_service.py tests\unit\test_export_service.py tests\unit\test_export_execution.py tests\unit\test_export_workspace.py tests\unit\test_export_workspace_errors.py tests\unit\test_export_widget_layout_bridge.py tests\unit\test_project_workflow_roundtrip.py tests\unit\test_project_panel.py tests\unit\test_canvas_workspace.py tests\unit\test_frame_renderer.py tests\unit\test_track_workspace.py tests\unit\test_track_analysis.py tests\unit\test_track_results_panel.py tests\unit\test_track_inspector_panel.py tests\unit\test_mini_track_widget.py -q`
+   - result: `74 passed`
+2. full unit suite
+   - `D:\Anaconda_env\karting\python.exe -m pytest -q`
+   - result: `153 passed in 60.65s`
+3. compile check
+   - `D:\Anaconda_env\karting\python.exe -m compileall kart_overlay tests`
+   - result: passed
+
+Known remaining tail items after this pass:
+
+1. export workspace status text still does not surface which encoder path was selected at runtime
+2. broader export-geometry parity after manual resize + project reload is still only partially covered
+3. several older UI files still contain legacy mojibake text and should be cleaned in a dedicated localization pass instead of mixed into timing/export work
+
+### 2026-06-12 Incremental Update - Full-sequence export time-series lookup
+
+This pass keeps full telemetry sequence export intact. It does not crop duration, skip frames, or limit the export range.
+
+Implemented:
+
+1. `kart_overlay/domain/telemetry/interpolator.py`
+   - replaced per-frame linear scanning from the beginning of the telemetry samples with a cursor-backed lookup for monotonic export timestamps
+   - added binary-search fallback for random/backward access, so timeline scrubbing and preview queries remain correct
+   - preserved existing boundary behavior for empty stores, first sample, final sample, and post-end timestamps
+2. `tests/unit/test_telemetry_interpolator.py`
+   - added coverage proving sequential full-export access advances the cached sample index
+   - added coverage proving random access remains correct after the cursor has advanced
+
+Why this matters:
+
+- previous full-sequence export lookup cost was effectively `frames * samples` in the worst case
+- sequential export now advances through the telemetry series once, so lookup cost is close to `frames + samples`
+- rendering and encoding cost still remain; this only removes repeated time-series search work
+
+Verification evidence:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_telemetry_interpolator.py -q`
+   - result: `3 passed`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_g_force_estimation.py -q`
+   - result: `2 passed`
+3. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_export_execution.py -q`
+   - result: `3 passed`
+4. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_export_workspace.py -q`
+   - result: `9 passed`
+5. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest -q`
+   - result: `187 passed in 50.87s`
+6. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+
+Remaining performance work:
+
+1. renderer-level static card/background caching is still not implemented
+2. export still writes every full RGBA frame to ffmpeg, so transparent alpha formats can remain large and CPU-heavy
+3. any further acceleration should be measured separately around frame rendering, byte conversion, and encoder input throughput
+
+### 2026-06-12 Incremental Update - Track-analysis timeline lookup indexes
+
+This pass continues the full-sequence export optimization. It still preserves the complete telemetry timeline and does not crop, skip, or window the export.
+
+Implemented:
+
+1. `kart_overlay/domain/timing/track_analysis.py`
+   - `TrackAnalysisSummary` now precomputes crossing times, lap records by index, sector splits by lap, sector end times, sector names, and sector split lookup maps in `__post_init__`
+   - `current_lap_number_at()`, `current_lap_time_at()`, `current_sector_time_at()`, and `current_sector_name_at()` now use indexed/bisect-based lookups instead of repeated per-frame scans and sorting
+   - `lap_gap_to_best()`, `sector_gap_to_best_lap()`, and `best_lap_sector_times` now reuse precomputed maps where possible
+2. `tests/unit/test_track_analysis.py`
+   - added coverage proving the lookup indexes are built
+   - added boundary coverage preserving the existing sector transition rule: at an exact sector end time, the current sector advances to the next segment
+
+Why this matters:
+
+- HUD widgets such as timer, lap distance, best-lap gap, and sector status query track-analysis state every rendered frame
+- those queries previously walked crossings or sector splits repeatedly during full-sequence export
+- export still renders all frames, but per-frame timing lookup work is now bounded by tuple/dict lookup and binary search
+
+Verification evidence:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_track_analysis.py -q`
+   - result: `6 passed`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_widget_factory_analysis.py tests\unit\test_lap_distance_widget.py tests\unit\test_hud_theme_restyle.py tests\unit\test_frame_renderer.py -q`
+   - result: `15 passed`
+3. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_export_execution.py tests\unit\test_export_workspace.py tests\unit\test_export_widget_layout_bridge.py -q`
+   - result: `16 passed`
+4. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest -q`
+   - result: `188 passed in 53.08s`
+5. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+
+Remaining performance work:
+
+1. static HUD card/background caching is still a separate renderer/widget-layer task
+2. RGBA byte conversion and ffmpeg pipe throughput remain likely bottlenecks for long transparent exports
+3. transparent format choice still dominates final file size; lookup optimization mainly reduces Python-side CPU overhead
+
+### 2026-06-12 Incremental Update - Static render layer for mini-track HUD
+
+This pass adds a small renderer-layer optimization without changing export duration, frame count, transparency format, or widget layout.
+
+Implemented:
+
+1. `kart_overlay/infrastructure/render/frame_renderer.py`
+   - added optional static-layer caching for widgets that declare `supports_static_render = True`
+   - static widgets render their fixed content once into an RGBA layer
+   - each frame composites that cached layer, then calls the widget dynamic render path
+   - widgets that do not opt in continue using the original `render(painter, frame)` path
+2. `kart_overlay/widgets/mini_track_widget.py`
+   - opted `MiniTrackWidget` into static rendering
+   - static path draws card background, title, inner panel, and track path
+   - dynamic path draws only the current marker and heading arrow
+   - direct `render()` remains as static + dynamic for preview and existing tests
+3. `tests/unit/test_frame_renderer.py`
+   - added a probe widget proving static content is rendered once while dynamic content renders every frame
+4. `tests/unit/test_mini_track_widget.py`
+   - added coverage for the split static/dynamic mini-track render paths
+
+Why this matters:
+
+- the mini-track card and track polyline are expensive fixed geometry during a full export
+- this avoids redrawing that fixed part for every frame while preserving the moving point and heading arrow
+- broader HUD card caching remains possible later, but this pass keeps the opt-in boundary narrow
+
+Verification evidence:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_mini_track_widget.py -q`
+   - result: `5 passed`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_frame_renderer.py -q`
+   - result: `4 passed`
+3. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_hud_theme_restyle.py tests\unit\test_g_force_widget.py tests\unit\test_heading_widget.py tests\unit\test_lap_distance_widget.py tests\unit\test_widget_factory_analysis.py -q`
+   - result: `15 passed`
+4. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_export_execution.py tests\unit\test_export_workspace.py tests\unit\test_export_widget_layout_bridge.py -q`
+   - result: `16 passed`
+5. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest -q`
+   - result: `190 passed in 65.04s`
+6. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+
+Remaining performance work:
+
+1. other metric cards still redraw their card backgrounds and text every frame
+2. RGBA byte conversion and ffmpeg pipe/encode throughput are still likely to dominate long transparent exports
+3. exact before/after export timing should be captured with a representative 25-minute project before choosing the next optimization target
+
+### 2026-06-13 Incremental Update - Canvas video first-frame reference
+
+This pass changes only the canvas editing preview. It does not affect transparent overlay export, export background handling, widget layout coordinates, or project save data.
+
+Implemented:
+
+1. `kart_overlay/infrastructure/video/video_frame_extractor.py`
+   - added `VideoFrameExtractor`
+   - uses the configured `ffmpeg` binary to extract the first frame as PNG over stdout
+   - decodes the frame into `QImage`
+   - returns `None` for invalid image data and raises a clear `FileNotFoundError` if `ffmpeg` is missing
+2. `kart_overlay/ui/canvas_workspace.py`
+   - `CanvasPreviewWidget` now accepts an optional frame extractor for tests
+   - preview background first draws the existing checkerboard fallback, then draws the cached first video frame into the canvas target rect when available
+   - the first-frame image is cached by video path, so repaint does not rerun `ffmpeg`
+   - cache is invalidated when the shared session video path changes
+   - `CanvasWorkspace` passes the extractor through to the preview widget without changing normal construction
+3. `tests/unit/test_video_frame_extractor.py`
+   - added command-building, PNG decode, invalid-image, and missing-ffmpeg coverage
+4. `tests/unit/test_canvas_workspace.py`
+   - added coverage proving the preview draws the video first frame as the reference background
+   - added coverage proving the cached first frame is reused until the video path changes
+
+Verification evidence:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_video_frame_extractor.py -q`
+   - result: `4 passed`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_canvas_workspace.py -q`
+   - result: `19 passed`
+3. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_project_panel.py tests\unit\test_project_session_bridge.py tests\unit\test_project_workflow_roundtrip.py -q`
+   - result: `8 passed`
+4. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_ffprobe_service.py tests\unit\test_packaging_runtime.py tests\unit\test_build_windows_dist.py -q`
+   - result: `23 passed`
+5. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest -q`
+   - result: `196 passed in 66.26s`
+6. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+
+Remaining notes:
+
+1. first-frame extraction currently happens synchronously on first preview paint for a new video path; it is cached afterwards
+2. if the first extraction fails, the preview keeps the checkerboard fallback instead of blocking editing
+3. a future polish pass could extract the first frame during video import and store it in the session if startup latency becomes noticeable
+
+### 2026-06-13 Incremental Update - Widget opacity, content sizing, desktop export default
+
+This pass addresses the canvas widget styling controls and export default path only. It does not change export encoding formats, telemetry calculation, or the existing hidden-by-default widget workflow.
+
+Implemented:
+
+1. `kart_overlay/widgets/hud_theme.py`
+   - added `card_border_for_opacity()`
+   - made card borders use the same opacity percentage as card fill, so `0%` background opacity now removes both fill and border
+   - changed core HUD card metrics to fixed text sizing; resizing the widget no longer continuously scales title/value/unit fonts
+2. `kart_overlay/widgets/base.py`
+   - made `font_px()` and `length_px()` content-stable instead of deriving from widget container scale
+   - added `minimum_dimensions()` / `minimum_size()` for content-driven resize clamps
+3. `kart_overlay/widgets/speed_widget.py` and `kart_overlay/widgets/widget_factory.py`
+   - tightened the speed widget default box to `136x72`
+   - added `minimum_widget_dimensions()` so canvas resizing can clamp to each widget's content minimum
+4. `kart_overlay/ui/canvas_workspace.py`
+   - resize handles and apply-geometry now clamp width/height to widget minimum content dimensions
+   - kept larger widths valid, so bars/charts can still use horizontal space while text stays fixed
+   - restored the canvas control label to `背景透明度`
+5. `kart_overlay/application/project_session.py`
+   - default export output directory now resolves to the Windows Desktop shell folder when available
+   - falls back to `~/Desktop`, then `D:/Desktop`, then the user home directory
+6. Tests
+   - added regression coverage for transparent fill+border pixels
+   - updated HUD scaling expectations to fixed text metrics
+   - added resize clamp coverage for canvas preview
+   - added export default output directory coverage
+
+Verification evidence:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_hud_theme_restyle.py tests\unit\test_hud_theme_scaling.py tests\unit\test_canvas_workspace.py tests\unit\test_project_session_bridge.py tests\unit\test_widget_factory_analysis.py -q`
+   - result: `42 passed`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m compileall kart_overlay tests`
+   - result: passed
+3. Initial full pytest attempts inside the sandbox failed because pytest could not create/list temp/cache directories in `C:\Users\Z\AppData\Local\Temp`, `.pytest_tmp`, or `C:\tmp`.
+4. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest -q --basetemp=C:\Users\Z\AppData\Local\Temp\video-tip-pytest-codex`
+   - result: `209 passed in 71.75s`
+
+Remaining notes:
+
+1. The new resize clamp is based on widget class minimum dimensions, not live font-measured `QFontMetrics`; this keeps the fix stable and small, but a future editor polish pass could measure exact rendered text for every data state.
+2. Width expansion remains allowed; fixed typography means large cards may show extra horizontal room, while trend/scale/minimap visuals can occupy that space.
+
+### 2026-06-14 Incremental Update - Track line replacement and widget interaction robustness
+
+This pass fixes four focused editor/runtime interaction issues. It does not change export encoding, telemetry parsing rules, widget layout serialization, or the hidden-by-default widget workflow.
+
+Implemented:
+
+1. `kart_overlay/ui/track_editor.py`
+   - confirmed the start/finish line remains a single `TrackDefinition.start_finish` field
+   - when a new start/finish line is committed, the editor selection now explicitly points to the new `start_finish` item
+   - existing sector lines are preserved when replacing the start/finish line
+2. `kart_overlay/ui/canvas_workspace.py`
+   - added a selected-widget fallback that restores the current list item before applying opacity, visibility, font, geometry, or hide operations
+   - Delete now hides the selected widget from list focus, preview focus, and geometry/opacity input focus
+   - the hide operation still only sets `enabled=False`; it does not delete widget layout data
+3. `kart_overlay/widgets/mini_track_widget.py`
+   - doubled the mini-track current-position marker radius from 5 px to 10 px
+   - marker radius continues to use `visual_scale`, so export/downscale paths preserve relative marker size
+   - mini-track inner panel fill/border now follow widget background opacity, so `0%` removes that panel background as well
+4. Tests
+   - added coverage for replacing an existing start/finish line while keeping sectors
+   - added coverage for opacity edits after preview selection is cleared
+   - added coverage for Delete from preview and settings focus
+   - added coverage for the larger, visual-scale-aware mini-track marker
+   - added coverage for mini-track `0%` background opacity on the inner panel
+
+Verification evidence:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_canvas_workspace.py tests\unit\test_mini_track_widget.py tests\unit\test_track_editor_interactions.py::test_track_editor_replaces_existing_start_finish_with_new_line -q --basetemp=C:\tmp\video-tip-pytest-codex-current-green-3`
+   - result: `37 passed`
+2. Manual VBO chain with `D:\Desktop\test.vbo`
+   - result: imported as `vbo`, `31565` samples, `1314.908` seconds
+   - replacing start/finish produced `start_x=2.0`, `start_y=-6.0`, `sectors=1`, `start_finish_items=1`
+3. Earlier broader related-suite attempt showed the remaining blocker is missing repository fixture `D:\Desktop\Video Tip\test.gpx`, which is referenced by several pre-existing tests.
+
+Remaining notes:
+
+1. Full repository pytest should be rerun after restoring or replacing the missing `test.gpx` fixture.
+2. Delete is intentionally treated as hide for the currently selected widget and remains non-destructive to saved layout coordinates.
+
+### 2026-06-14 Incremental Update - Cancelled export partial MOV cleanup
+
+This pass fixes cancelled export residue. It does not change export codecs, transparency settings, frame rendering, or normal completed-export overwrite behavior.
+
+Implemented:
+
+1. `kart_overlay/application/export_service.py`
+   - wraps manifest writing, frame streaming, and ffmpeg execution in a cancellation cleanup boundary
+   - on `ExportCancelledError`, deletes the current request's output video path, including half-written `.mov` files
+   - deletes the current request's `export_manifest.json` so the next export cannot read stale resolution/format metadata
+   - preserves `export.log` and appends `[cancel_cleanup]` entries with deleted file names or cleanup errors
+2. `kart_overlay/ui/export_workspace.py`
+   - cancellation callback resets progress to `0`
+   - clears `_active_output_path` and `_active_encoder_label` after cancellation
+   - continues loading the cancellation log preview for diagnostics
+3. Tests
+   - added a regression test that simulates ffmpeg writing a partial `overlay.mov` before cancellation and verifies the partial video and manifest are removed
+   - added UI callback coverage proving cancelled export state is cleared
+
+Verification evidence:
+
+1. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_export_service.py::test_export_service_cleans_partial_mov_and_manifest_when_cancelled tests\unit\test_export_workspace.py::test_export_workspace_cancel_callback_clears_active_output_state -q`
+   - result: `2 passed`
+2. `C:\Users\Z\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest tests\unit\test_export_service.py tests\unit\test_export_workspace.py tests\unit\test_export_execution.py tests\unit\test_ffmpeg_exporter.py -q --basetemp=C:\Users\Z\AppData\Local\Temp\video-tip-pytest-codex-cancel`
+   - result: `22 passed`
+
+Remaining notes:
+
+1. Cleanup is intentionally scoped to explicit cancellation only. Non-cancel failures still keep their output/log state for debugging.
+2. If Windows keeps a half-written movie locked after ffmpeg termination, cleanup logs the deletion error in `export.log`; the current ffmpeg cancellation path waits for process exit before service-level cleanup.
+
+### 2026-06-14 Incremental Update - Workspace cache cleanup
+
+This pass removes generated files and local caches only. It does not delete source code, packaged release artifacts, project documentation, or the `tests` source tree.
+
+Removed:
+
+1. Python bytecode/cache directories
+   - `kart_overlay/**/__pycache__`
+   - `scripts/**/__pycache__`
+   - `tests/unit/__pycache__`
+2. Pytest caches and temporary directories
+   - `.pytest_cache`
+   - `.pytest_tmp`
+   - `.pytest_tmp_run_da6ee3bd0a8c4ade97a5da8105e01bc4`
+3. Build/test intermediate output
+   - `build`
+4. Old generated archive
+   - `kart_overlay.zip`
+
+Kept:
+
+1. `dist/KartOverlay-Setup.exe`
+2. `dist/KartOverlay-windows-x64.zip`
+3. `dist/KartOverlay/KartOverlay.exe`
+4. `tests` source files
+
+Verification evidence:
+
+1. `Get-ChildItem -Path kart_overlay,scripts,tests -Force -Recurse -Directory -Filter '__pycache__'`
+   - result: no remaining `__pycache__` directories
+2. `Get-ChildItem -Path kart_overlay,scripts,tests -Force -Recurse -File -Include *.pyc,*.pyo`
+   - result: no remaining Python bytecode files
+3. Top-level listing now contains only `.git`, `dist`, `docs`, `kart_overlay`, `packaging`, `scripts`, `tests`, config files, README, and project docs.

@@ -27,3 +27,4 @@ class ExportTaskRequest:
     manifest_path: Path
     log_path: Path
     manifest_payload: dict
+    export_format: str = "mov_prores_4444"

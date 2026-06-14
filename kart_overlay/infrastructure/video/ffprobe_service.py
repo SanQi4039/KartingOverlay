@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -57,6 +58,7 @@ class FfprobeService:
             shell=False,
             check=True,
             capture_output=True,
+            **_hidden_subprocess_kwargs(),
         )
         output_text = self._decode_probe_output(completed.stdout)
         try:
@@ -136,3 +138,20 @@ class FfprobeService:
     @staticmethod
     def _parse_int(value: object) -> int:
         return int(round(FfprobeService._parse_float(value)))
+
+
+def _hidden_subprocess_kwargs() -> dict[str, object]:
+    if os.name != "nt":
+        return {}
+    startupinfo_cls = getattr(subprocess, "STARTUPINFO", None)
+    startupinfo = startupinfo_cls() if startupinfo_cls is not None else type("StartupInfo", (), {})()
+    startupinfo.dwFlags = getattr(startupinfo, "dwFlags", 0) | getattr(
+        subprocess,
+        "STARTF_USESHOWWINDOW",
+        1,
+    )
+    startupinfo.wShowWindow = getattr(subprocess, "SW_HIDE", 0)
+    return {
+        "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000),
+        "startupinfo": startupinfo,
+    }

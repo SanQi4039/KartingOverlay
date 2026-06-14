@@ -69,6 +69,41 @@ def test_track_editor_dragging_endpoint_updates_geometry_and_status():
     app.quit()
 
 
+def test_track_editor_endpoint_drag_preview_does_not_recompute_until_release(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    telemetry = TelemetryImportService().import_file(FIXTURE_DIR / "test.gpx")
+    editor = TrackEditor()
+    editor.load_telemetry(telemetry)
+    editor.set_edit_mode("start_finish")
+    editor.commit_line_from_points((0.0, -5.0), (0.0, 5.0))
+
+    line_item = editor.editable_items()[0]
+    line_item.select_line()
+    recompute_count = 0
+    changed_definitions = []
+    original_refresh = editor._refresh_analysis
+
+    def counted_refresh():
+        nonlocal recompute_count
+        recompute_count += 1
+        original_refresh()
+
+    monkeypatch.setattr(editor, "_refresh_analysis", counted_refresh)
+    editor.track_definition_changed.connect(changed_definitions.append)
+
+    editor.drag_selected_endpoint("start", (2.0, -3.0))
+    editor.drag_selected_endpoint("start", (3.0, -4.0))
+
+    assert recompute_count == 0
+    assert changed_definitions == []
+
+    editor.finish_endpoint_drag()
+
+    assert recompute_count == 1
+    assert len(changed_definitions) == 1
+    app.quit()
+
+
 def test_track_editor_can_delete_selected_sector_and_clear_stale_analysis():
     app = QApplication.instance() or QApplication([])
     telemetry = TelemetryImportService().import_file(FIXTURE_DIR / "test.gpx")
@@ -151,4 +186,29 @@ def test_track_editor_shows_pending_preview_line_after_first_click_for_draw_mode
         assert editor.has_pending_preview_line is True
         assert editor.has_track_path is True
 
+    app.quit()
+
+
+def test_track_editor_pending_preview_reuses_preview_item_without_full_render(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    telemetry = TelemetryImportService().import_file(FIXTURE_DIR / "test.gpx")
+    editor = TrackEditor()
+    editor.load_telemetry(telemetry)
+    editor.set_edit_mode("start_finish")
+    editor.handle_scene_click((0.0, -5.0))
+    render_count = 0
+
+    def counted_render(*, fit_view=True):
+        nonlocal render_count
+        render_count += 1
+
+    monkeypatch.setattr(editor, "_render", counted_render)
+
+    editor.update_pending_preview((5.0, 3.0))
+    first_item = editor._pending_preview_item
+    editor.update_pending_preview((6.0, 4.0))
+
+    assert render_count == 0
+    assert editor.has_pending_preview_line is True
+    assert editor._pending_preview_item is first_item
     app.quit()

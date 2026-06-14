@@ -1,8 +1,9 @@
-from PySide6.QtCore import QPoint, QRect, QRectF, Qt, Signal
-from PySide6.QtGui import QImage, QPainter
+from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, Qt, Signal
+from PySide6.QtGui import QImage, QKeySequence, QPainter, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -19,9 +20,10 @@ from kart_overlay.application.project_session import ProjectSession
 from kart_overlay.domain.telemetry.interpolator import TelemetryInterpolator
 from kart_overlay.domain.telemetry.store import TelemetryStore
 from kart_overlay.infrastructure.render.frame_renderer import FrameRenderer
+from kart_overlay.infrastructure.video.video_frame_extractor import VideoFrameExtractor
 from kart_overlay.ui.texts import app_text, widget_display_name, widget_key_from_display_name
-from kart_overlay.widgets.hud_theme import draw_checkerboard
-from kart_overlay.widgets.widget_factory import build_widgets_from_session, widget_label_pairs
+from kart_overlay.widgets.hud_theme import DEFAULT_CARD_OPACITY, DEFAULT_FONT_SCALE, MIN_FONT_SCALE, draw_checkerboard
+from kart_overlay.widgets.widget_factory import build_widgets_from_session, minimum_widget_dimensions, widget_label_pairs
 
 
 class CanvasPreviewWidget(QWidget):
@@ -31,9 +33,11 @@ class CanvasPreviewWidget(QWidget):
         self,
         *,
         session: ProjectSession,
+        frame_extractor: object | None = None,
     ) -> None:
         super().__init__()
         self._session = session
+        self._frame_extractor = frame_extractor or VideoFrameExtractor()
         self._preview_time_sec = 0.0
         self._selected_widget_key: str | None = None
         self._dragging = False
@@ -44,6 +48,9 @@ class CanvasPreviewWidget(QWidget):
         self._resize_start_size = (0, 0)
         self._overlay_cache_key: tuple[object, ...] | None = None
         self._overlay_cache_image: QImage | None = None
+        self._video_reference_cache_path: str | None = None
+        self._video_reference_cache_image: QImage | None = None
+        self._video_reference_cache_loaded = False
         self.setMinimumSize(480, 270)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -51,6 +58,7 @@ class CanvasPreviewWidget(QWidget):
         self._session.telemetry_changed.connect(self._handle_overlay_source_changed)
         self._session.track_definition_changed.connect(self._handle_overlay_source_changed)
         self._session.track_analysis_changed.connect(self._handle_overlay_source_changed)
+        self._session.video_path_changed.connect(self._handle_video_path_changed)
         self._session.video_metadata_changed.connect(self._handle_video_metadata_changed)
 
     def set_preview_time(self, preview_time_sec: float) -> None:
@@ -65,13 +73,40 @@ class CanvasPreviewWidget(QWidget):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         try:
-            draw_checkerboard(painter, self.rect())
             target_rect = self._target_rect()
+            self._draw_preview_background(painter, target_rect)
             self._draw_overlay_vector(painter, target_rect)
             self._draw_canvas_edge_annotations(painter, target_rect)
             self._draw_selection(painter, target_rect)
         finally:
             painter.end()
+
+    def _draw_preview_background(self, painter: QPainter, target_rect: QRect) -> None:
+        draw_checkerboard(painter, self.rect())
+        reference_image = self._video_reference_image()
+        if reference_image is None:
+            return
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        painter.drawImage(QRectF(target_rect), reference_image)
+        painter.restore()
+
+    def _video_reference_image(self) -> QImage | None:
+        video_path = self._session.video_path.strip()
+        if not video_path:
+            self._video_reference_cache_path = None
+            self._video_reference_cache_image = None
+            self._video_reference_cache_loaded = False
+            return None
+        if self._video_reference_cache_path == video_path and self._video_reference_cache_loaded:
+            return self._video_reference_cache_image
+        self._video_reference_cache_path = video_path
+        self._video_reference_cache_loaded = True
+        try:
+            self._video_reference_cache_image = self._frame_extractor.extract_first_frame(video_path)
+        except Exception:
+            self._video_reference_cache_image = None
+        return self._video_reference_cache_image
 
     def mousePressEvent(self, event) -> None:
         handle_name = self._resize_handle_at(event.position().toPoint())
@@ -218,10 +253,15 @@ class CanvasPreviewWidget(QWidget):
     def resize_selected_widget(self, width: int, height: int) -> None:
         if self._selected_widget_key is None:
             return
+        layout = self._session.widget_layouts.get(self._selected_widget_key, {})
+        min_width, min_height = minimum_widget_dimensions(
+            self._selected_widget_key,
+            font_scale=float(layout.get("font_scale", DEFAULT_FONT_SCALE)),
+        )
         self._set_widget_layout(
             self._selected_widget_key,
-            width=max(80, int(width)),
-            height=max(40, int(height)),
+            width=max(min_width, int(width)),
+            height=max(min_height, int(height)),
         )
 
     def _canvas_size(self) -> tuple[int, int]:
@@ -308,6 +348,15 @@ class CanvasPreviewWidget(QWidget):
     def _handle_video_metadata_changed(self, _metadata) -> None:
         self._invalidate_overlay_cache()
         self.update()
+
+    def _handle_video_path_changed(self, _video_path: str) -> None:
+        self._invalidate_video_reference_cache()
+        self.update()
+
+    def _invalidate_video_reference_cache(self) -> None:
+        self._video_reference_cache_path = None
+        self._video_reference_cache_image = None
+        self._video_reference_cache_loaded = False
 
     def _target_rect(self) -> QRect:
         canvas_width, canvas_height = self._canvas_size()
@@ -420,6 +469,7 @@ class CanvasWorkspace(QWidget):
         self,
         *,
         session: ProjectSession | None = None,
+        frame_extractor: object | None = None,
     ) -> None:
         super().__init__()
         self._session = session or ProjectSession()
@@ -431,15 +481,31 @@ class CanvasWorkspace(QWidget):
             item.setData(Qt.ItemDataRole.UserRole, widget_key)
             self.widget_list.addItem(item)
         self.widget_list.currentTextChanged.connect(self.select_widget)
+        self.widget_list.installEventFilter(self)
 
         self.x_input = QSpinBox()
         self.x_input.setRange(0, 3840)
+        self.x_input.installEventFilter(self)
         self.y_input = QSpinBox()
         self.y_input.setRange(0, 2160)
+        self.y_input.installEventFilter(self)
         self.width_input = QSpinBox()
         self.width_input.setRange(80, 3840)
+        self.width_input.installEventFilter(self)
         self.height_input = QSpinBox()
         self.height_input.setRange(40, 2160)
+        self.height_input.installEventFilter(self)
+        self.background_opacity_input = QSpinBox()
+        self.background_opacity_input.setRange(0, 100)
+        self.background_opacity_input.setSuffix("%")
+        self.background_opacity_input.setValue(DEFAULT_CARD_OPACITY)
+        self.background_opacity_input.installEventFilter(self)
+        self.background_opacity_input.valueChanged.connect(self._handle_background_opacity_changed)
+        self.font_smaller_button = QPushButton("字体 -")
+        self.font_smaller_button.clicked.connect(lambda: self._adjust_selected_font_scale(-0.1))
+        self.font_larger_button = QPushButton("字体 +")
+        self.font_larger_button.clicked.connect(lambda: self._adjust_selected_font_scale(0.1))
+        self.font_scale_label = QLabel("字体 100%")
         self.enabled_toggle = QCheckBox(app_text("widget_visible"))
         self.enabled_toggle.toggled.connect(self._handle_enabled_toggled)
         self.hide_widget_button = QPushButton(app_text("hide_widget"))
@@ -460,8 +526,12 @@ class CanvasWorkspace(QWidget):
             QSizePolicy.Policy.Preferred,
         )
 
-        self.preview_widget = CanvasPreviewWidget(session=self._session)
+        self.preview_widget = CanvasPreviewWidget(session=self._session, frame_extractor=frame_extractor)
+        self.preview_widget.installEventFilter(self)
         self.preview_widget.widget_selected.connect(self._handle_preview_widget_selected)
+        self.delete_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Delete), self)
+        self.delete_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.delete_shortcut.activated.connect(self.hide_selected_widget)
 
         controls = QWidget()
         controls_layout = QVBoxLayout(controls)
@@ -470,11 +540,16 @@ class CanvasWorkspace(QWidget):
         form.addRow("Y", self.y_input)
         form.addRow(app_text("canvas_width"), self.width_input)
         form.addRow(app_text("canvas_height"), self.height_input)
+        form.addRow("背景透明度", self.background_opacity_input)
+        font_scale_row = QHBoxLayout()
+        font_scale_row.addWidget(self.font_smaller_button)
+        font_scale_row.addWidget(self.font_larger_button)
+        font_scale_row.addWidget(self.font_scale_label)
+        form.addRow("字体大小", font_scale_row)
         controls_layout.addWidget(QLabel(app_text("canvas_widgets")))
         controls_layout.addWidget(self.widget_list)
         controls_layout.addLayout(form)
         controls_layout.addWidget(self.enabled_toggle)
-        controls_layout.addWidget(self.hide_widget_button)
         controls_layout.addWidget(self.preview_time_label)
         controls_layout.addWidget(self.preview_time_slider)
         controls_layout.addWidget(self.apply_position_button)
@@ -514,6 +589,25 @@ class CanvasWorkspace(QWidget):
             )
         self.widget_list.setCurrentRow(0)
 
+    def eventFilter(self, watched, event) -> bool:
+        if (
+            watched
+            in {
+                self.widget_list,
+                self.preview_widget,
+                self.x_input,
+                self.y_input,
+                self.width_input,
+                self.height_input,
+                self.background_opacity_input,
+            }
+            and event.type() == QEvent.Type.KeyPress
+            and event.key() == Qt.Key.Key_Delete
+        ):
+            self.hide_selected_widget()
+            return True
+        return super().eventFilter(watched, event)
+
     def select_widget(self, widget_name: str) -> None:
         if not widget_name:
             return
@@ -534,11 +628,17 @@ class CanvasWorkspace(QWidget):
         self.y_input.setValue(int(layout.get("y", 0)))
         self.width_input.setValue(width)
         self.height_input.setValue(height)
-        self.enabled_toggle.setChecked(bool(layout.get("enabled", True)))
+        self.background_opacity_input.blockSignals(True)
+        self.background_opacity_input.setValue(int(layout.get("background_opacity", DEFAULT_CARD_OPACITY)))
+        self.background_opacity_input.blockSignals(False)
+        self._set_font_scale_label(float(layout.get("font_scale", DEFAULT_FONT_SCALE)))
+        self.enabled_toggle.blockSignals(True)
+        self.enabled_toggle.setChecked(bool(layout.get("enabled", False)))
+        self.enabled_toggle.blockSignals(False)
         self.position_label.setText(f"X={self.x_input.value()}, Y={self.y_input.value()}")
 
     def move_selected_widget(self, x: int, y: int) -> None:
-        if self._selected_widget_key is None:
+        if self._ensure_selected_widget_key() is None:
             return
         self._update_selected_widget_layout(
             x=x,
@@ -549,19 +649,20 @@ class CanvasWorkspace(QWidget):
         self.position_label.setText(f"X={x}, Y={y}")
 
     def hide_selected_widget(self) -> None:
-        if self._selected_widget_key is None:
+        widget_key = self._ensure_selected_widget_key()
+        if widget_key is None:
             return
         widget_layouts = {
             name: dict(layout)
             for name, layout in self._session.widget_layouts.items()
         }
-        if self._selected_widget_key not in widget_layouts:
+        if widget_key not in widget_layouts:
             return
-        widget_layouts[self._selected_widget_key]["enabled"] = False
+        widget_layouts[widget_key]["enabled"] = False
         self._session.set_widget_layouts(widget_layouts)
 
     def apply_selected_widget_geometry(self) -> None:
-        if self._selected_widget_key is None:
+        if self._ensure_selected_widget_key() is None:
             return
         self._update_selected_widget_layout(
             x=self.x_input.value(),
@@ -581,18 +682,24 @@ class CanvasWorkspace(QWidget):
         width: int,
         height: int,
     ) -> None:
-        if self._selected_widget_key is None:
+        widget_key = self._ensure_selected_widget_key()
+        if widget_key is None:
             return
         widget_layouts = {
             name: dict(layout)
             for name, layout in self._session.widget_layouts.items()
         }
-        if self._selected_widget_key not in widget_layouts:
+        if widget_key not in widget_layouts:
             return
-        widget_layouts[self._selected_widget_key]["x"] = x
-        widget_layouts[self._selected_widget_key]["y"] = y
-        widget_layouts[self._selected_widget_key]["width"] = width
-        widget_layouts[self._selected_widget_key]["height"] = height
+        current_layout = widget_layouts[widget_key]
+        min_width, min_height = minimum_widget_dimensions(
+            widget_key,
+            font_scale=float(current_layout.get("font_scale", DEFAULT_FONT_SCALE)),
+        )
+        widget_layouts[widget_key]["x"] = x
+        widget_layouts[widget_key]["y"] = y
+        widget_layouts[widget_key]["width"] = max(min_width, int(width))
+        widget_layouts[widget_key]["height"] = max(min_height, int(height))
         self._session.set_widget_layouts(widget_layouts)
 
     def _handle_widget_layouts_changed(
@@ -611,7 +718,13 @@ class CanvasWorkspace(QWidget):
             self.y_input.setValue(int(layout.get("y", 0)))
             self.width_input.setValue(width)
             self.height_input.setValue(height)
-            self.enabled_toggle.setChecked(bool(layout.get("enabled", True)))
+            self.background_opacity_input.blockSignals(True)
+            self.background_opacity_input.setValue(int(layout.get("background_opacity", DEFAULT_CARD_OPACITY)))
+            self.background_opacity_input.blockSignals(False)
+            self._set_font_scale_label(float(layout.get("font_scale", DEFAULT_FONT_SCALE)))
+            self.enabled_toggle.blockSignals(True)
+            self.enabled_toggle.setChecked(bool(layout.get("enabled", False)))
+            self.enabled_toggle.blockSignals(False)
         self.preview_widget.update()
 
     def _handle_session_telemetry_changed(
@@ -630,27 +743,78 @@ class CanvasWorkspace(QWidget):
         self.preview_widget.set_preview_time(preview_time_sec)
 
     def _handle_enabled_toggled(self, enabled: bool) -> None:
-        if self._selected_widget_key is None:
+        widget_key = self._ensure_selected_widget_key()
+        if widget_key is None:
             return
         widget_layouts = {
             name: dict(layout)
             for name, layout in self._session.widget_layouts.items()
         }
-        if self._selected_widget_key not in widget_layouts:
+        if widget_key not in widget_layouts:
             return
-        widget_layouts[self._selected_widget_key]["enabled"] = enabled
+        widget_layouts[widget_key]["enabled"] = enabled
         self._session.set_widget_layouts(widget_layouts)
+
+    def _handle_background_opacity_changed(self, value: int) -> None:
+        widget_key = self._ensure_selected_widget_key()
+        if widget_key is None:
+            return
+        widget_layouts = {
+            name: dict(layout)
+            for name, layout in self._session.widget_layouts.items()
+        }
+        if widget_key not in widget_layouts:
+            return
+        widget_layouts[widget_key]["background_opacity"] = int(value)
+        self._session.set_widget_layouts(widget_layouts)
+
+    def _adjust_selected_font_scale(self, delta: float) -> None:
+        widget_key = self._ensure_selected_widget_key()
+        if widget_key is None:
+            return
+        widget_layouts = {
+            name: dict(layout)
+            for name, layout in self._session.widget_layouts.items()
+        }
+        if widget_key not in widget_layouts:
+            return
+        current = float(widget_layouts[widget_key].get("font_scale", DEFAULT_FONT_SCALE))
+        next_scale = round(max(MIN_FONT_SCALE, current + delta), 2)
+        layout = widget_layouts[widget_key]
+        layout["font_scale"] = next_scale
+        min_width, min_height = minimum_widget_dimensions(widget_key, font_scale=next_scale)
+        layout["width"] = max(min_width, int(layout.get("width", min_width) or min_width))
+        layout["height"] = max(min_height, int(layout.get("height", min_height) or min_height))
+        self._set_font_scale_label(next_scale)
+        self._session.set_widget_layouts(widget_layouts)
+
+    def _set_font_scale_label(self, font_scale: float) -> None:
+        self.font_scale_label.setText(f"字体 {int(round(font_scale * 100))}%")
 
     def _handle_preview_widget_selected(self, widget_key: object) -> None:
         if not isinstance(widget_key, str):
             self.widget_list.clearSelection()
             self._selected_widget_key = None
             return
-        for index in range(self.widget_list.count()):
-            item = self.widget_list.item(index)
-            if item.data(Qt.ItemDataRole.UserRole) == widget_key:
-                self.widget_list.setCurrentItem(item)
-                break
+        display_name = widget_display_name(widget_key)
+        self.select_widget(display_name)
+
+    def _ensure_selected_widget_key(self) -> str | None:
+        if self._selected_widget_key in self._session.widget_layouts:
+            return self._selected_widget_key
+        current_item = self.widget_list.currentItem()
+        if current_item is None:
+            return None
+        item_key = current_item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(item_key, str) or item_key not in self._session.widget_layouts:
+            return None
+        self._selected_widget_key = item_key
+        self.preview_widget.set_selected_widget_key(item_key)
+        if not current_item.isSelected():
+            self.widget_list.blockSignals(True)
+            self.widget_list.setCurrentItem(current_item)
+            self.widget_list.blockSignals(False)
+        return item_key
 
     def _selected_widget_key_from_ui_value(self, widget_name: str) -> str | None:
         current_item = self.widget_list.currentItem()

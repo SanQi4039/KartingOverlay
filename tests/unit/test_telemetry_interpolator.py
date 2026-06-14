@@ -43,3 +43,32 @@ def test_telemetry_interpolator_linearly_interpolates_frame():
     assert frame.heading_deg == pytest.approx(20.0)
     assert frame.accel_long_g == pytest.approx(0.3)
     assert frame.accel_lat_g == pytest.approx(0.5)
+
+
+def test_telemetry_interpolator_advances_cursor_for_full_sequence_export():
+    store = TelemetryStore(
+        samples=[
+            TelemetrySample(sample_index=index, elapsed_sec=float(index), speed_kmh=float(index * 10))
+            for index in range(8)
+        ]
+    )
+    interpolator = TelemetryInterpolator(store)
+
+    speeds = [interpolator.frame_at(elapsed).speed_kmh for elapsed in (0.25, 1.25, 2.25, 3.25)]
+
+    assert speeds == pytest.approx([2.5, 12.5, 22.5, 32.5])
+    assert interpolator._last_sample_index >= 3
+
+
+def test_telemetry_interpolator_keeps_random_access_correct_after_cursor_advance():
+    store = TelemetryStore(
+        samples=[
+            TelemetrySample(sample_index=index, elapsed_sec=float(index), speed_kmh=float(index * 10))
+            for index in range(10)
+        ]
+    )
+    interpolator = TelemetryInterpolator(store)
+
+    assert interpolator.frame_at(8.5).speed_kmh == pytest.approx(85.0)
+    assert interpolator.frame_at(1.5).speed_kmh == pytest.approx(15.0)
+    assert interpolator.frame_at(9.0).speed_kmh == pytest.approx(90.0)

@@ -3,11 +3,27 @@ from kart_overlay.domain.telemetry.models import TelemetrySample
 from kart_overlay.domain.telemetry.store import TelemetryStore
 from kart_overlay.domain.track.models import Point2D, SectorLine, TimingLine, TrackDefinition
 from kart_overlay.ui.texts import widget_display_name
-from kart_overlay.widgets.widget_factory import build_widgets_from_session
+from kart_overlay.widgets.widget_factory import build_widgets_from_session, default_widget_layouts
+
+
+def test_default_widget_layouts_start_hidden_until_user_enables_components():
+    layouts = default_widget_layouts()
+
+    assert layouts
+    assert all(layout["enabled"] is False for layout in layouts.values())
 
 
 def test_widget_factory_builds_analysis_widgets_when_track_definition_exists():
     session = ProjectSession()
+    session.set_widget_layouts(
+        {
+            "lap_summary": {"enabled": True},
+            "best_lap": {"enabled": True},
+            "best_lap_gap": {"enabled": True},
+            "sector_state": {"enabled": True},
+            "lap_distance": {"enabled": True},
+        }
+    )
     session.set_telemetry(
         TelemetryStore(
             samples=[
@@ -50,10 +66,14 @@ def test_widget_factory_builds_analysis_widgets_when_track_definition_exists():
 
     assert "LapSummaryWidget" in widget_names
     assert "BestLapWidget" in widget_names
+    assert "BestLapGapWidget" in widget_names
     assert "SectorStateWidget" in widget_names
+    assert "LapDistanceWidget" in widget_names
     assert widget_display_name("lap_summary") in display_names
     assert widget_display_name("best_lap") in display_names
+    assert widget_display_name("best_lap_gap") in display_names
     assert widget_display_name("sector_state") in display_names
+    assert widget_display_name("lap_distance") in display_names
 
 
 def test_widget_factory_applies_custom_widget_dimensions_from_session_layouts():
@@ -69,3 +89,54 @@ def test_widget_factory_applies_custom_widget_dimensions_from_session_layouts():
 
     assert speed_widget.width == 420
     assert speed_widget.height == 160
+
+
+def test_widget_factory_passes_background_opacity_from_session_layouts():
+    session = ProjectSession()
+    session.set_widget_layouts(
+        {
+            "speed": {
+                "x": 40,
+                "y": 50,
+                "width": 190,
+                "height": 86,
+                "enabled": True,
+                "background_opacity": 42,
+            },
+        }
+    )
+
+    widgets = build_widgets_from_session(session)
+    speed_widget = next(widget for widget in widgets if widget.widget_key == "speed")
+
+    assert speed_widget.background_opacity == 42
+
+
+def test_widget_factory_passes_font_scale_from_session_layouts():
+    session = ProjectSession()
+    session.set_widget_layouts(
+        {
+            "speed": {
+                "x": 40,
+                "y": 50,
+                "width": 190,
+                "height": 86,
+                "enabled": True,
+                "font_scale": 1.3,
+            },
+        }
+    )
+
+    widgets = build_widgets_from_session(session)
+    speed_widget = next(widget for widget in widgets if widget.widget_key == "speed")
+
+    assert speed_widget.font_scale == 1.3
+
+
+def test_widget_factory_can_hide_best_lap_gap_widget():
+    session = ProjectSession()
+    session.set_widget_layouts({"best_lap_gap": {"enabled": False}})
+
+    widgets = build_widgets_from_session(session)
+
+    assert "best_lap_gap" not in {widget.widget_key for widget in widgets}

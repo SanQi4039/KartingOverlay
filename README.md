@@ -3,6 +3,18 @@
 Native Qt desktop application for building transparent telemetry overlay videos
 from GPX/VBO data and source video files.
 
+## Incremental Update: UI Grouping, Minimal HUD, and Stable MOV Export
+
+This pass tightens the active workflow around the latest UI feedback:
+
+1. Track line actions are grouped together in the track workspace operation bar: view mode, add start/finish, add sector, delete sector line, and reset start/finish now live in one `线操作` group.
+2. Background image import moved next to telemetry import in `ProjectPanel`; the track workspace now keeps only background clear, opacity, and alignment controls.
+3. Background images now default to full opacity (`100%`) instead of the previous semi-transparent default.
+4. Right-drag rotation in the track editor now uses the opposite horizontal drag direction.
+5. Canvas component hiding is controlled by the `显示组件` checkbox and the keyboard `Delete` key; `Delete` maps to `enabled=False` and preserves layout data.
+6. HUD widgets have been simplified away from card-like copy: numeric widgets now render only the primary value, and graphical widgets no longer add small title/subtitle chrome.
+7. MOV export now always uses CPU `prores_ks` with `yuva444p10le` for transparent ProRes 4444 output, even if `prores_ks_vulkan` is present, because the Vulkan encoder path can stall after the first frame on current Windows FFmpeg builds.
+
 ## Incremental Update: Phase 1 Direct Import And Export Naming
 
 The first implementation phase for the new workflow refinement is now in place:
@@ -94,6 +106,23 @@ The final distribution tail is now closed:
 2. The installer now declares `PrivilegesRequired=lowest`, which keeps silent install and smoke verification aligned with a normal user environment.
 3. The Windows packaging tests now cover that installer contract directly.
 4. Real packaging verification has been rerun end to end: build script, portable executable smoke, silent installer smoke, and installed executable launch smoke all pass on the current Windows environment.
+
+## Incremental Update: Phase 7 HUD Overlay Restyle Foundation
+
+The HUD-only execution phase is now in place:
+
+1. The default overlay layout now uses a safer baseline geometry, including explicit default widths and heights, so the stock HUD no longer overlaps on the default `1280x720` canvas.
+2. Telemetry frame production now normalizes invalid heading values and carries an internal acceleration-source flag, which supports safe fallback behavior without adding extra HUD copy.
+3. When source files do not provide acceleration channels, the interpolator now produces a conservative estimated G-force from motion instead of leaving the G-force widget empty by default.
+4. `MiniTrackWidget` now supports a broadcast-style current-position marker with halo and heading arrow when heading data is available.
+5. Shared HUD card metrics have been tightened, `MiniTrackWidget` has been reduced to a more compact default height, and `CoordinatesWidget` has been demoted to a smaller tertiary footprint.
+6. Added focused regression coverage for HUD geometry, mini-track marker behavior, heading safety, G-force estimation, and preview/export hidden-state parity.
+
+This phase still deliberately stops short of the remaining non-HUD requests:
+
+1. no track-results-panel redesign
+2. no sector timing model rewrite
+3. no export GPU acceleration or ffmpeg window suppression work yet
 
 ## Current Scaffold Status
 
@@ -721,3 +750,152 @@ Verification coverage for this pass now includes:
 3. precise zoom-button transform tests
 4. widget typography scaling tests
 5. full unit-test pass across the repository (`123 passed`)
+
+## Incremental Update: Sector Timing Fixes, HUD Track Linkage, and Faster MOV Export
+
+This pass tightened the current track-analysis and export workflow without changing the overall overlay-first architecture:
+
+1. lap sector timing now follows the intended race order:
+   - `S1`: start/finish to sector line 1
+   - `S2`: sector line 1 to sector line 2
+   - `S3`: sector line 2 back to start/finish
+2. sector split generation now produces `N + 1` timed segments for `N` sector lines, including the final return segment
+3. current-sector reporting now returns the active segment name instead of the last completed segment
+4. the track results panel now appends per-lap split text directly into each lap row
+5. the lap list now allows horizontal scrolling so dense split content remains readable
+
+The HUD track widget was also corrected so the live marker and direction arrow stay pinned to the rendered trajectory:
+
+1. the moving dot now uses the same normalization basis as the full track polyline
+2. the heading arrow remains anchored to that corrected live point
+3. regression coverage now checks the marker is positioned on the same normalized track coordinates used by the preview path
+
+The MOV export subprocess path received a stability/performance pass:
+
+1. `ffmpeg` no longer keeps long-running `stderr` output in an in-memory pipe, which reduces the risk of export hangs on larger runs
+2. `ffmpeg` and `ffprobe` now start with hidden-window subprocess flags on Windows, preventing terminal popups during metadata read/export
+3. the exporter now keeps transparent MOV output on the CPU `prores_ks` path; an earlier Vulkan-preference experiment was superseded because `prores_ks_vulkan` can stall on current Windows builds
+
+Verification coverage for this pass now includes:
+
+1. targeted sector-analysis and track-results regressions
+2. HUD mini-track marker/arrow anchoring regressions
+3. Windows subprocess flag and non-piped `ffmpeg` logging regressions
+4. export, workspace, frame-renderer, canvas, and track-workspace regression runs
+5. full unit-test pass across the repository (`153 passed`)
+
+## Incremental Update: Export Encoder Visibility, Reload-Safe Geometry, and HUD Copy Cleanup
+
+This pass closes the three follow-up tail items from the previous handoff:
+
+1. export now surfaces the encoder path selected at runtime
+   - the export preparation/result flow now carries an `encoder_label`
+   - the active encoder label is now `ProRes 4444 (CPU)` for transparent MOV output
+2. widget geometry now survives project save/load and remains aligned for later export
+   - project save was already writing full widget layout payloads
+   - project load now restores `width`, `height`, and `enabled` instead of only `x`, `y`, and `enabled`
+   - this closes the earlier drift where manually resized widgets quietly snapped back to default sizes after reload
+3. the HUD copy layer has been tightened without changing layout structure
+   - `lap_summary` display naming now matches the current compact behavior as `圈数`
+   - HUD card titles for lap count, best lap, sector status, mini track, heading, and G value are now explicit and consistent
+   - heading directions now use Chinese compass labels (`北 / 东北 / 东 ...`) instead of English abbreviations
+
+One important clarification from this pass:
+
+1. the earlier “mojibake” suspicion was mostly a terminal-display issue during inspection, not a widespread UTF-8 source-file corruption problem
+2. this cleanup therefore stayed focused on real HUD copy inconsistencies instead of rewriting the entire text layer
+
+Verification coverage for this pass now includes:
+
+1. project roundtrip tests for persisted widget width/height/enabled
+2. export workspace tests for encoder-label visibility and shared-session widget dimensions
+3. export execution tests updated for capability-aware command preparation
+4. HUD copy tests for exact display names, card titles, and Chinese compass labels
+5. full unit-test pass across the repository (`157 passed`)
+
+## Incremental Update: Overlay Export Scaling and Lap Distance HUD
+
+This pass fixes overlay export parity when the export canvas is smaller than the source video canvas:
+
+1. `ExportWorkspace` now builds export-only widget copies and scales their `x`, `y`, `width`, and `height` from `video_metadata.canvas_size` to the selected export canvas.
+2. the UI preview/session widget layout is not mutated during export, so preview geometry remains the source of truth.
+3. export manifests now record the widget original canvas, target canvas, and `scale_x` / `scale_y` used for the export.
+4. the resolution selector remains limited to original video size, 1080p, and 720p.
+
+This pass also adds the compact `LapDistanceWidget`:
+
+1. the widget displays `圈已行驶距离`, an integer meter value, unit `m`, and a bottom lap-progress bar.
+2. lap distance and lap length come from `TrackAnalysisSummary.lap_distance_profiles`; missing data stays `--` and does not turn into `0`.
+3. progress is clamped to `0..1`, while the displayed distance remains the real distance returned by the profile.
+4. `hud_theme.py` now exposes shared dark-card, border, text, accent, positive, negative, warning, radius, and padding constants for HUD widgets.
+
+Verification coverage for this pass now includes:
+
+1. export widget scaling and manifest regression tests
+2. lap-distance summary and widget missing-data tests
+3. widget factory/default-layout coverage for `LapDistanceWidget`
+4. HUD theme and label-order regressions
+5. full unit-test pass across the repository (`175 passed`)
+
+## Incremental Update: RaceChrono-Style HUD Card Group
+
+This pass restructures the overlay widgets around the reference RaceChrono-style card system while keeping the canvas/background behavior unchanged:
+
+1. widget cards now share the same dark card fill, border, 6 px radius, 8/12 px padding, title style, primary value style, unit style, and helper color rules.
+2. the default widget layout now follows a dashboard-like grid with 12 px spacing; the mini track card spans a wider slot.
+3. metric widgets now include visual areas such as progress gauges, center G bars, trend bars, mini line charts, heading ticks, and mini-track drawing instead of plain text-only blocks.
+4. added dashboard cards for relative height and longitudinal G value so the default card group matches the reference set more closely.
+5. the export/preview canvas background remains as before: transparent export frames and the existing editor preview background are not replaced by a full-page dashboard fill. Only the widget cards themselves draw their own dark backgrounds.
+
+Verification coverage for this pass:
+
+1. HUD/card/theme/widget/canvas focused regression group: `41 passed`
+2. non-UI/data/widget-factory group: `34 passed`
+3. UI/project/HUD group: `52 passed`
+4. export/build/ffmpeg group: `46 passed`
+5. track editor/results/workspace group: `43 passed`
+6. compile check for changed widget/render/canvas modules: passed
+
+## Incremental Update: Transparent Small Export Formats and G-Force Ball
+
+This pass adds transparent low-size export choices without changing the existing transparent overlay rendering model:
+
+1. export format settings are now centralized in `kart_overlay.application.export_formats`
+   - `MOV ProRes 4444`: transparent, editing-friendly, largest file size
+   - `MOV Animation`: transparent, smaller for flat HUD graphics, can grow with complex visuals
+   - `WebM VP9 Alpha`: transparent, smallest file size, weaker editor compatibility
+2. the export page and legacy export dialog now show every format with a short explanation and an estimated output size.
+3. estimates scale from a 720p/50fps reference bitrate by canvas pixels, fps, and export duration, so a 720p 50fps 25-minute ProRes export is shown at roughly the same 16 GB order of magnitude seen in practice.
+4. selected formats now flow through the export request, service, FFmpeg command builder, output extension normalization, and manifest fields.
+5. the HUD set now includes a `GForceBallWidget` card that preserves the current RaceChrono card style while plotting lateral/longitudinal G as a two-axis ball.
+6. the editor checkerboard preview background has been restored; the full overlay canvas is not replaced by a dark dashboard background.
+
+Verification coverage for this pass:
+
+1. export format/spec/size-estimate tests: passed
+2. FFmpeg command builder tests for ProRes, QTRLE, and VP9 alpha: passed
+3. export workspace and manifest regression tests: passed
+4. HUD G-force ball, layout, factory, frame renderer, and canvas regressions: passed
+
+## Incremental Update: FPS Presets, Export Snapshot Isolation, and Alpha-Safe Formats
+
+This pass tightens export behavior after real editor testing showed WebM output appearing as a black-background clip:
+
+1. the export FPS control is now a preset selector instead of free text
+   - source-video FPS is listed after video metadata is loaded
+   - common options include 24, 25, 30, 50, and 60 fps
+2. export now freezes a deep-copied widget snapshot before the background task starts
+   - changing the canvas while export is running no longer changes the in-flight export's widget geometry
+3. WebM VP9 alpha has been removed from the transparent export options
+   - a local FFmpeg encode/decode alpha smoke test showed VP9/WebM decoding back as fully opaque
+   - this prevents exporting a file that appears transparent in intent but black in editors
+4. the transparent video options now stay limited to alpha-verified MOV outputs
+   - MOV ProRes 4444 for best editing compatibility
+   - MOV Animation/QTRLE for smaller transparent HUD overlays
+5. FFmpeg alpha preservation tests now encode and decode minimal transparent frames for supported formats and verify that alpha survives.
+
+Verification coverage for this pass:
+
+1. export format and FFmpeg command regressions: passed
+2. export workspace FPS preset and snapshot isolation regressions: passed
+3. real FFmpeg alpha preservation smoke test for ProRes/QTRLE: passed

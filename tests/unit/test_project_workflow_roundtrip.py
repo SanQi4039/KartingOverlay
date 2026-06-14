@@ -68,8 +68,8 @@ def test_project_panel_can_save_and_load_complete_workflow_state(tmp_path: Path)
     )
     source_session.set_widget_layouts(
         {
-            "speed": {"x": 111, "y": 222, "enabled": True},
-            "timer": {"x": 333, "y": 444, "enabled": True},
+            "speed": {"x": 111, "y": 222, "width": 420, "height": 160, "enabled": True, "background_opacity": 37, "font_scale": 1.3},
+            "timer": {"x": 333, "y": 444, "width": 260, "height": 90, "enabled": False},
         }
     )
     source_session.set_export_settings(
@@ -77,8 +77,7 @@ def test_project_panel_can_save_and_load_complete_workflow_state(tmp_path: Path)
             "output_dir": str(tmp_path / "exports"),
             "output_filename": "roundtrip_export",
             "fps": "59.940060",
-            "canvas_width": "1080",
-            "canvas_height": "1920",
+            "overlay_resolution_mode": "1080p",
             "range_mode": "full_telemetry",
             "format": "mov_prores_4444",
         }
@@ -105,9 +104,17 @@ def test_project_panel_can_save_and_load_complete_workflow_state(tmp_path: Path)
     assert loaded_session.track_definition.start_finish.name == "Start/Finish"
     assert loaded_session.track_definition.background_image_path.endswith("track-background.png")
     assert loaded_session.widget_layouts["speed"]["x"] == 111
+    assert loaded_session.widget_layouts["speed"]["width"] == 420
+    assert loaded_session.widget_layouts["speed"]["height"] == 160
+    assert loaded_session.widget_layouts["speed"]["background_opacity"] == 37
+    assert loaded_session.widget_layouts["speed"]["font_scale"] == 1.3
     assert loaded_session.widget_layouts["timer"]["y"] == 444
+    assert loaded_session.widget_layouts["timer"]["width"] == 260
+    assert loaded_session.widget_layouts["timer"]["height"] == 90
+    assert loaded_session.widget_layouts["timer"]["enabled"] is False
     assert loaded_session.export_settings["output_dir"].endswith("exports")
     assert loaded_session.export_settings["output_filename"] == "roundtrip_export"
+    assert loaded_session.export_settings["overlay_resolution_mode"] == "1080p"
     assert loaded_session.export_settings["range_mode"] == "full_telemetry"
     assert loaded_session.export_settings["format"] == "mov_prores_4444"
     app.quit()

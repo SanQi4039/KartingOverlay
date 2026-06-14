@@ -1,8 +1,10 @@
 import json
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
+from kart_overlay.infrastructure.video import ffprobe_service as ffprobe_service_module
 from kart_overlay.infrastructure.video.ffprobe_service import FfprobeService
 
 
@@ -154,3 +156,38 @@ def test_ffprobe_service_reads_rotation_from_display_matrix_side_data():
 
     assert metadata.rotation_deg == -90
     assert metadata.canvas_size == (1920, 1080)
+
+
+def test_ffprobe_service_hides_windows_console(monkeypatch):
+    service = FfprobeService(binary_path="ffprobe")
+    run_kwargs: dict[str, object] = {}
+    payload = {
+        "streams": [
+            {
+                "codec_type": "video",
+                "width": 1920,
+                "height": 1080,
+                "avg_frame_rate": "60000/1001",
+                "duration": "1.0",
+            }
+        ],
+        "format": {"duration": "1.0"},
+    }
+
+    def fake_run(*args, **kwargs):
+        run_kwargs.update(kwargs)
+        return subprocess.CompletedProcess(
+            args=args[0],
+            returncode=0,
+            stdout=json.dumps(payload).encode("utf-8"),
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(ffprobe_service_module, "binary_path_available", lambda path: True)
+    monkeypatch.setattr(ffprobe_service_module, "os", SimpleNamespace(name="nt"), raising=False)
+    monkeypatch.setattr(ffprobe_service_module.subprocess, "run", fake_run)
+
+    service.probe("sample.mp4")
+
+    assert run_kwargs["creationflags"] != 0
+    assert run_kwargs["startupinfo"] is not None
